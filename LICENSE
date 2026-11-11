@@ -1,0 +1,32 @@
+MIT License
+
+Copyright (c) 2026 pdeView contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+----------------------------------------------------------------------------
+Third-party notices
+
+- backend/pdeview/model/fno.py is adapted from PDEBench
+  (https://github.com/pdebench/PDEBench, pdebench/models/fno/fno.py), which is
+  itself derived from https://github.com/zongyi-li/fourier_neural_operator,
+  both MIT-licensed.
+- The PDEBench dataset and pretrained checkpoints (DaRUS doi:10.18419/darus-2986
+  and doi:10.18419/darus-2987) are CC BY 4.0. They are downloaded at runtime
+  and are not redistributed in this repository.
