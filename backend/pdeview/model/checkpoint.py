@@ -26,7 +26,8 @@ class CheckpointInfo:
     md5_expected: str
     md5_ok: bool
     epoch: int | None
-    train_loss: float | None
+    stored_val_loss: float | None  # PDEBench saves the best validation loss under "loss"
+    optimizer_lr: float | None
     n_parameters: int
     n_real_parameters: int
     keys: list[str] = field(default_factory=list)
@@ -61,13 +62,18 @@ def load_fno(
     n_real = sum(p.numel() * (2 if p.is_complex() else 1) for p in model.parameters())
     epoch = ckpt.get("epoch") if isinstance(ckpt, dict) else None
     loss = ckpt.get("loss") if isinstance(ckpt, dict) else None
+    try:
+        lr = float(ckpt["optimizer_state_dict"]["param_groups"][0]["lr"])
+    except (KeyError, IndexError, TypeError):
+        lr = None
     info = CheckpointInfo(
         path=str(path),
         md5=digest,
         md5_expected=SWE_FNO_CKPT.md5,
         md5_ok=digest == SWE_FNO_CKPT.md5,
         epoch=int(epoch) if epoch is not None else None,
-        train_loss=float(loss) if loss is not None else None,
+        stored_val_loss=float(loss) if loss is not None else None,
+        optimizer_lr=lr,
         n_parameters=n_params,
         n_real_parameters=n_real,
         keys=sorted(ckpt.keys()) if isinstance(ckpt, dict) else [],
