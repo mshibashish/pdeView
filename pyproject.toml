@@ -32,6 +32,7 @@ packages = ["backend/pdeview"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+filterwarnings = ["ignore::DeprecationWarning:fastapi.testclient"]
 
 [tool.ruff]
 line-length = 100

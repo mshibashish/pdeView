@@ -1,0 +1,167 @@
+"""Viewer service: owns the data store, the model and a cache of FNO rollouts."""
+
+from __future__ import annotations
+
+import json
+import logging
+import os
+import threading
+from collections import OrderedDict
+from concurrent.futures import Future
+
+import numpy as np
+import torch
+
+from pdeview.config import FNO_INITIAL_STEP, REPORTS_DIR
+from pdeview.data.store import SampleStore
+from pdeview.inference import make_grid, persistence, rollout
+from pdeview.metrics import sample_stats
+from pdeview.model.checkpoint import load_fno
+
+log = logging.getLogger(__name__)
+
+
+def _load_json(name: str) -> dict | None:
+    path = REPORTS_DIR / name
+    return json.loads(path.read_text()) if path.exists() else None
+
+
+class ViewerService:
+    def __init__(self, device: str | None = None, cache_size: int = 32):
+        self.device = device or os.environ.get("PDEVIEW_DEVICE", "cpu")
+        self.store = SampleStore()
+        self.model, self.ckpt_info = load_fno(device=self.device)
+        self.grid = make_grid(self.store.x, self.store.y)
+        self.verification = _load_json("verification.json")
+        self.audit = _load_json("dataset_audit.json")
+        self._cache: OrderedDict[str, np.ndarray] = OrderedDict()
+        self._pending: dict[str, Future] = {}
+        self._lock = threading.Lock()
+        self._cache_size = cache_size
+        per_sample = (self.verification or {}).get("per_sample", [])
+        self._sample_metrics = {p["key"]: p for p in per_sample}
+
+    # ------------------------------------------------------------------ rollouts
+    def prediction(self, key: str) -> np.ndarray:
+        """FNO rollout ``[T, X, Y]`` for a sample (computed once, then cached; thread-safe)."""
+        with self._lock:
+            if key in self._cache:
+                self._cache.move_to_end(key)
+                return self._cache[key]
+            fut = self._pending.get(key)
+            owner = fut is None
+            if owner:
+                fut = self._pending[key] = Future()
+        if not owner:
+            return fut.result()
+        try:
+            gt = self.store.frames(key)
+            pred = rollout(self.model, gt[:FNO_INITIAL_STEP], self.grid, gt.shape[0],
+                           device=self.device)
+            pred.setflags(write=False)
+            with self._lock:
+                self._cache[key] = pred
+                while len(self._cache) > self._cache_size:
+                    self._cache.popitem(last=False)
+            fut.set_result(pred)
+            return pred
+        except BaseException as err:
+            fut.set_exception(err)
+            raise
+        finally:
+            with self._lock:
+                self._pending.pop(key, None)
+
+    def warm_up(self, keys: list[str]) -> None:
+        for key in keys:
+            try:
+                self.prediction(key)
+            except Exception:  # pragma: no cover - warm-up is best effort
+                log.exception("warm-up failed for %s", key)
+
+    # ------------------------------------------------------------------ summaries
+    def samples(self) -> list[dict]:
+        twins = (self.audit or {}).get("twins", {})
+        local = set(self.store.keys())
+        out = []
+        for key, info in self.store.samples.items():
+            m = self._sample_metrics.get(key, {})
+            out.append({
+                "key": key,
+                "split": info.split,
+                "dam_radius": info.dam_radius,
+                "nRMSE": m.get("nRMSE"),
+                "RMSE": m.get("RMSE"),
+                "max_error": m.get("max_error"),
+                "ic_cells": m.get("ic_cells"),
+                "n_twins_total": len(twins.get(key, [])),
+                "twins_local": [t for t in twins.get(key, []) if t in local],
+            })
+        return out
+
+    def stats(self, key: str) -> dict:
+        gt = self.store.frames(key)
+        pred = self.prediction(key)
+        k0 = FNO_INITIAL_STEP
+        s = sample_stats(pred[k0:], gt[k0:])
+        base = sample_stats(persistence(gt[:k0], gt.shape[0])[k0:], gt[k0:])
+        cell = self.store.dx * self.store.dy
+
+        def pad(a: np.ndarray) -> list[float | None]:
+            return [None] * k0 + [float(v) for v in a]
+
+        return {
+            "key": key,
+            "t": self.store.t.tolist(),
+            "initial_step": k0,
+            "rmse": pad(s.rmse),
+            "nrmse": pad(s.nrmse),
+            "max_abs": pad(s.max_abs),
+            "persistence_nrmse": pad(base.nrmse),
+            "volume_gt": (gt.sum(axis=(1, 2), dtype=np.float64) * cell).tolist(),
+            "volume_pred": (pred.sum(axis=(1, 2), dtype=np.float64) * cell).tolist(),
+            "range": {"min": float(min(gt.min(), pred.min())),
+                      "max": float(max(gt.max(), pred.max())),
+                      "err_abs_max": float(np.abs(pred[k0:] - gt[k0:]).max())},
+            "summary": {"nRMSE": float(s.nrmse.mean()), "RMSE": float(s.rmse.mean()),
+                        "max_error": float(s.max_abs.max()),
+                        "persistence_nRMSE": float(base.nrmse.mean())},
+        }
+
+    def meta(self) -> dict:
+        v = self.verification or {}
+        acc = v.get("accuracy", {})
+        a = self.audit or {}
+        return {
+            "grid": {"x": self.store.x.tolist(), "y": self.store.y.tolist(),
+                     "domain": [-2.5, 2.5, -2.5, 2.5]},
+            "t": self.store.t.tolist(),
+            "shape": [len(self.store.t), len(self.store.x), len(self.store.y)],
+            "initial_step": FNO_INITIAL_STEP,
+            "physics": {"equation": "2D shallow-water (radial dam break)", "gravity": 1.0,
+                        "h_inside": 2.0, "h_outside": 1.0,
+                        "radius_range": [0.3, 0.7], "boundary": "outflow (extrapolation)"},
+            "model": {
+                "name": "FNO2d (PDEBench pretrained, 2D_rdb_NA_NA_FNO.pt)",
+                "device": self.device,
+                "torch": torch.__version__,
+                "n_parameters": self.ckpt_info.n_parameters,
+                "epoch": self.ckpt_info.epoch,
+                "md5_ok": self.ckpt_info.md5_ok,
+                **self.ckpt_info.hyperparameters,
+            },
+            "verification": {
+                "available": bool(v),
+                "verdict": v.get("verdict"),
+                "generated_at": v.get("generated_at"),
+                "criteria": [{k: c[k] for k in ("name", "pass", "kind")}
+                             for c in v.get("criteria", [])],
+                "paper": acc.get("paper"),
+                "pdebench_compat": acc.get("pdebench_compat"),
+                "clean": acc.get("clean"),
+                "persistence_over_fno_nRMSE": acc.get("persistence_over_fno_nRMSE"),
+            },
+            "dataset": {k: a.get(k) for k in (
+                "n_samples", "n_distinct_trajectories", "n_possible_initial_conditions",
+                "test_with_identical_train_trajectory", "n_test")},
+        }
