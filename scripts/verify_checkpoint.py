@@ -196,9 +196,9 @@ def write_markdown(rep: dict, figs: dict[str, str]) -> None:
         "",
         "## Metrics vs. the PDEBench paper",
         "",
-        "PDEBench test split = the last 10 % of sorted sample keys (`0900`-`0999`, 100 samples), as in"
-        " PDEBench's default FNO loader. Frames 0-9 are ground-truth input; metrics cover the 91"
-        " autoregressive predictions (frames 10-100).",
+        "PDEBench test split = the last 10 % of sorted sample keys (`0900`-`0999`, 100"
+        " samples), as in PDEBench's default FNO loader. Frames 0-9 are ground-truth input;"
+        " metrics cover the 91 autoregressive predictions (frames 10-100).",
         "",
         "* **PDEBench aggregation** reproduces the paper's evaluation loop (per-batch metrics,"
         " batch size 5, summed and divided by `n_batches - 1`) - the like-for-like comparison.",

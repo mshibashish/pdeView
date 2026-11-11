@@ -1,10 +1,10 @@
 # Pretrained FNO verification - 2D shallow-water equations (PDEBench `2D_rdb_NA_NA`)
 
-Generated 2026-11-11T19:43:43+00:00 by `scripts/verify_checkpoint.py` (torch 2.15.0, Darwin arm64).
+Generated 2026-11-11T19:47:39+00:00 by `scripts/verify_checkpoint.py` (torch 2.15.0, Darwin arm64).
 
 ## Summary
 
-* **Gates: PASS.** The DaRUS checkpoint is intact, loads strictly into PDEBench's FNO architecture and, run as PDEBench runs it, reaches nRMSE 5.13e-03 on the held-out split (1.17x the paper's 4.4e-03; all metrics 1.17-1.74x the paper) and is 33x better than a persistence baseline. It is used in the viewer.
+* **Gates: PASS.** The DaRUS checkpoint is intact, loads strictly into PDEBench's FNO architecture and, run as PDEBench runs it, reaches nRMSE 5.13e-03 on PDEBench's test split (1.17x the paper's 4.4e-03; all metrics 1.17-1.74x the paper) and is 33x better than a persistence baseline. It is used in the viewer.
 * **Finding 1 - the test split does not measure generalisation.** The 1000 samples contain only **81 distinct trajectories**; **100/100 test samples are bit-identical to a training sample.** The reported accuracy is accuracy on trajectories the model was trained on.
 * **Finding 2 - the checkpoint's stored validation loss is not reproducible** (2.17x higher when recomputed), and the checkpoint is somewhat less accurate than the paper's table, suggesting it was trained/evaluated on a different revision of the data or pipeline than the one published.
 
@@ -30,7 +30,7 @@ Generated 2026-11-11T19:43:43+00:00 by `scripts/verify_checkpoint.py` (torch 2.1
 
 ## Metrics vs. the PDEBench paper
 
-Held-out split = the last 10 % of sorted sample keys (`0900`-`0999`, 100 samples), as in PDEBench's default FNO loader. Frames 0-9 are ground-truth input; metrics cover the 91 autoregressive predictions (frames 10-100).
+PDEBench test split = the last 10 % of sorted sample keys (`0900`-`0999`, 100 samples), as in PDEBench's default FNO loader. Frames 0-9 are ground-truth input; metrics cover the 91 autoregressive predictions (frames 10-100).
 
 * **PDEBench aggregation** reproduces the paper's evaluation loop (per-batch metrics, batch size 5, summed and divided by `n_batches - 1`) - the like-for-like comparison.
 * **Clean** aggregates all 100 samples as one population (no off-by-one; `max error`, `cRMSE` and `fRMSE` taken over all samples rather than per batch of 5).
@@ -76,7 +76,7 @@ PDEBench saves the best validation loss in the checkpoint (`loss`: per-batch MSE
 * PDEBench's `metrics()` divides summed per-batch errors by the last batch *index* (19 instead of 20 batches), inflating reported values by ~5 %; the *clean* column removes this. Its `max error` is the mean over time of the per-batch worst case, so it depends on batch size.
 * Ground-truth water volume is conserved to 1.2e-09 (waves never reach the outflow boundary before t = 1); the FNO is not conservative by construction - its volume error is the `cRMSE` metric.
 * The FNO error is concentrated at the moving bore (ringing from the 12-mode spectral truncation of a near-discontinuity) and is largest early in the rollout, when the front is sharpest, and for the largest radii.
-* Inference: 1.06 s per 91-step rollout on CPU (batched), 0.32 s on Apple MPS (single sample); MPS vs. CPU max abs difference 1.9e-05.
+* Inference: 1.43 s per 91-step rollout on CPU (batched), 0.32 s on Apple MPS (single sample); MPS vs. CPU max abs difference 1.9e-05.
 * Our metric implementation was cross-checked against PDEBench's `metric_func` on the same predictions: all eight metrics agree to <= 7e-6 relative (float32 round-off).
 
 ## Figures
