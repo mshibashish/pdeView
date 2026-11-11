@@ -103,5 +103,17 @@ def report_figure(name: str) -> FileResponse:
     return FileResponse(path)
 
 
+class FrontendFiles(StaticFiles):
+    """Serve the built SPA: revalidate HTML on every load, cache hashed assets forever."""
+
+    async def get_response(self, path, scope):
+        response = await super().get_response(path, scope)
+        if path.startswith("assets/"):
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        else:
+            response.headers["Cache-Control"] = "no-cache"
+        return response
+
+
 if FRONTEND_DIST.exists():
-    app.mount("/", StaticFiles(directory=FRONTEND_DIST, html=True), name="frontend")
+    app.mount("/", FrontendFiles(directory=FRONTEND_DIST, html=True), name="frontend")

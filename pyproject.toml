@@ -17,6 +17,9 @@ dependencies = [
     "uvicorn[standard]>=0.27",
 ]
 
+[project.scripts]
+pdeview-serve = "pdeview.serve:main"
+
 [project.optional-dependencies]
 report = ["matplotlib>=3.8"]
 
@@ -32,7 +35,7 @@ packages = ["backend/pdeview"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-filterwarnings = ["ignore::DeprecationWarning:fastapi.testclient"]
+filterwarnings = ["ignore:Using `httpx` with `starlette.testclient`"]
 
 [tool.ruff]
 line-length = 100

@@ -88,8 +88,10 @@ def fig_error_vs_radius(rep: dict) -> str:
     ax.set_xlabel("dam radius r (training range 0.3-0.7)")
     ax.set_ylabel("time-averaged nRMSE")
     ax.legend(frameon=False, fontsize=8.5, labelcolor=INK2)
-    ax.set_title("Per-sample FNO error vs. dam radius (coinciding points are bit-identical "
-                 "samples)", loc="left", color=INK, fontsize=10)
+    ax.set_title("Per-sample FNO error vs. dam radius", loc="left", color=INK, fontsize=11,
+                 pad=16)
+    ax.text(0, 1.01, "coinciding points are bit-identical samples", transform=ax.transAxes,
+            fontsize=8.5, color=MUTED, va="bottom")
     fig.tight_layout()
     path = FIG_DIR / "error_vs_radius.png"
     fig.savefig(path, dpi=160, facecolor=SURFACE)

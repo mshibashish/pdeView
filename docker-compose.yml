@@ -1,0 +1,15 @@
+services:
+  pdeview:
+    build: .
+    image: pdeview:latest
+    ports:
+      - "8000:7860"
+    volumes:
+      # persist the downloaded checkpoint + data subset between restarts
+      - pdeview-data:/app/data
+      - pdeview-ckpt:/app/checkpoints
+    restart: unless-stopped
+
+volumes:
+  pdeview-data: {}
+  pdeview-ckpt: {}

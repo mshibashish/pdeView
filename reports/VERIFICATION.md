@@ -1,6 +1,6 @@
 # Pretrained FNO verification - 2D shallow-water equations (PDEBench `2D_rdb_NA_NA`)
 
-Generated 2026-11-11T19:47:39+00:00 by `scripts/verify_checkpoint.py` (torch 2.15.0, Darwin arm64).
+Generated 2026-11-11T20:00:41+00:00 by `scripts/verify_checkpoint.py` (torch 2.15.0, Darwin arm64).
 
 ## Summary
 
@@ -76,7 +76,7 @@ PDEBench saves the best validation loss in the checkpoint (`loss`: per-batch MSE
 * PDEBench's `metrics()` divides summed per-batch errors by the last batch *index* (19 instead of 20 batches), inflating reported values by ~5 %; the *clean* column removes this. Its `max error` is the mean over time of the per-batch worst case, so it depends on batch size.
 * Ground-truth water volume is conserved to 1.2e-09 (waves never reach the outflow boundary before t = 1); the FNO is not conservative by construction - its volume error is the `cRMSE` metric.
 * The FNO error is concentrated at the moving bore (ringing from the 12-mode spectral truncation of a near-discontinuity) and is largest early in the rollout, when the front is sharpest, and for the largest radii.
-* Inference: 1.43 s per 91-step rollout on CPU (batched), 0.32 s on Apple MPS (single sample); MPS vs. CPU max abs difference 1.9e-05.
+* Inference: 1.33 s per 91-step rollout on CPU (batched), 0.32 s on Apple MPS (single sample); MPS vs. CPU max abs difference 1.9e-05.
 * Our metric implementation was cross-checked against PDEBench's `metric_func` on the same predictions: all eight metrics agree to <= 7e-6 relative (float32 round-off).
 
 ## Figures
