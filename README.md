@@ -35,7 +35,8 @@ involved:
   exported to ONNX, is rolled out with onnxruntime-web.
 
 The ground-truth fields are exact copies of the PDEBench and PyClaw data. To keep the site small, the predictions
-are quantised to 16 bits, which changes them by at most about 3e-5 in *h*, far below the FNO's own error.
+are quantised to 16 bits, which changes them by less than 1.5e-5 in *h* (the exact bound is in the site's `manifest.json`), far below
+the FNO's own error.
 
 How it differs from the full app:
 - Predictions are precomputed and quantised instead of rolled out live in PyTorch.
