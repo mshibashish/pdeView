@@ -35,6 +35,7 @@ Usage (after ``npm run build``, which empties ``frontend/dist``)::
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import json
 import logging
 import os
@@ -400,6 +401,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 def run(args: argparse.Namespace) -> int:
     from pdeview.service import ViewerService  # imports torch: after --help
 
+    missing = [m for m in ("onnx", "onnxruntime") if importlib.util.find_spec(m) is None]
+    if missing and not args.no_model:
+        raise SystemExit(f"error: {', '.join(missing)} not installed. The export needs the "
+                         "`static` dependency group: uv run --group static python "
+                         "scripts/export_static.py ...")
     t_start = time.perf_counter()
     out: Path = args.out.resolve()
     log.info("pdeView static export -> %s", out)
