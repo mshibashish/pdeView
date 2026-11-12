@@ -9,8 +9,8 @@ build/
 dist/
 
 # Large assets fetched at runtime (never committed)
-data/
-checkpoints/
+/data/
+/checkpoints/
 *.h5
 *.pt
 *.pickle
