@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { fmtSci, metricLabel } from "../format";
-import type { Generalization, GeneralizationCase, MetricKey, Verification } from "../types";
+import type {
+  Generalization, GeneralizationCase, Heldout, HeldoutFamily, MetricKey, Verification,
+} from "../types";
 
 const METRICS: MetricKey[] = [
   "RMSE", "nRMSE", "cRMSE", "max_error", "bRMSE", "fRMSE_low", "fRMSE_mid", "fRMSE_high",
@@ -34,6 +36,7 @@ export function VerificationView() {
   const [v, setV] = useState<Verification | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [gen, setGen] = useState<Generalization | null>(null);
+  const [held, setHeld] = useState<Heldout | null>(null);
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -42,6 +45,9 @@ export function VerificationView() {
     });
     api.generalization(ctrl.signal).then(setGen).catch(() => {
       /* optional report - the section is hidden if it has not been generated */
+    });
+    api.heldout(ctrl.signal).then(setHeld).catch(() => {
+      /* optional report, as above */
     });
     return () => ctrl.abort();
   }, []);
@@ -136,6 +142,8 @@ export function VerificationView() {
           was probably trained on an earlier revision of the data or pipeline.
         </p>
       </section>
+
+      {held && <HeldoutSection held={held} />}
 
       {gen && <GeneralizationSection gen={gen} />}
 
@@ -263,6 +271,103 @@ function GeneralizationSection({ gen }: { gen: Generalization }) {
       </p>
       <figure className="gen-figure">
         <img src={api.figureUrl("generalization_families.png")} alt="FNO error vs. radius, dam position and inner depth" loading="lazy" />
+      </figure>
+    </section>
+  );
+}
+
+const HELDOUT_ROWS: [HeldoutFamily | "seen", string][] = [
+  ["subcell", "Sub-cell dam position"],
+  ["cellavg", "Cell-averaged dam wall"],
+  ["seen", "Control: the 81 training ICs"],
+];
+
+function HeldoutSection({ held }: { held: Heldout }) {
+  const f = held.families;
+  const gc = held.generator_check;
+  const gates = held.criteria.filter((c) => c.kind === "gate");
+  const findings = held.criteria.filter((c) => c.kind === "finding");
+  const famLabel = (fam: string) => (fam === "all" ? "Both sets" : held.design.labels[fam] ?? fam);
+  return (
+    <section className="panel">
+      <h2>
+        Held-out in-distribution test
+        <span className={`pill ${held.verdict === "PASS" ? "good" : "critical"}`} style={{ marginLeft: 10 }}>
+          {held.verdict === "PASS" ? "gates pass" : "gates fail"}
+        </span>
+      </h2>
+      <p>
+        PDEBench&apos;s generator can only produce {held.design.n_training_ics} distinct initial conditions on this grid,
+        and its training split contains all of them, so no amount of re-sampling yields unseen in-distribution data.
+        We kept the physical specification (a centred circular dam, r ~ U(0.3, 0.7), h = 2 inside and 1 outside) and
+        discretised it in two ways that never reproduce a training IC: a <strong>sub-cell dam position</strong> (the
+        centre drawn within half a cell of the origin, which the grid cannot resolve) and a{" "}
+        <strong>cell-averaged dam wall</strong> (cut cells hold the fraction of water). Every reference trajectory comes
+        from PyClaw configured as PDEBench, which reproduces {gc.n_bit_identical}/{gc.n_checked} downloaded samples bit
+        for bit.
+      </p>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Initial conditions</th>
+              <th scope="col">n</th>
+              <th scope="col">FNO nRMSE (95 % CI)</th>
+              <th scope="col">× paper</th>
+              <th scope="col">× training ICs</th>
+              <th scope="col">Persistence</th>
+              <th scope="col">Nearest-trajectory lookup</th>
+            </tr>
+          </thead>
+          <tbody>
+            {HELDOUT_ROWS.map(([fam, label]) => {
+              const r = f[fam];
+              const ratio = (r.pdebench_compat?.nRMSE ?? r.nRMSE) / held.paper.nRMSE;
+              return (
+                <tr key={fam}>
+                  <th scope="row">{label}</th>
+                  <td>{r.n}</td>
+                  <td>
+                    {fmtSci(r.nRMSE)} <span className="muted">[{fmtSci(r.nRMSE_ci95[0], 1)}, {fmtSci(r.nRMSE_ci95[1], 1)}]</span>
+                  </td>
+                  <td>{ratio.toFixed(2)}×</td>
+                  <td>{(r.nRMSE / f.seen.nRMSE).toFixed(2)}×</td>
+                  <td>{fmtSci(r.persistence_nRMSE)}</td>
+                  <td>{fam === "seen" ? "exact (0)" : fmtSci(r.lookup_nRMSE)}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="note">
+        × paper uses PDEBench&apos;s aggregation for the held-out sets (gate: ≤ 2×). The control row is weighted by each
+        IC&apos;s probability under r ~ U(0.3, 0.7). The lookup returns the training trajectory whose 10 input frames are
+        closest. Because the distribution is so narrow, it does as well as the FNO or better. Browse the cases in{" "}
+        <em>Viewer → Held-out</em>.
+      </p>
+      <ul className="checks">
+        {[...gates, ...findings].map((c) => (
+          <li key={`${c.family}-${c.name}`} className={c.pass ? "ok" : c.kind === "gate" ? "fail" : "issue"}>
+            <StatusIcon ok={c.pass} kind={c.kind} />
+            <div>
+              <div className="check-name">
+                {c.name}
+                <span className="check-kind">{famLabel(c.family)} · {c.kind === "gate" ? (c.pass ? "Pass" : "Fail") : c.pass ? "OK" : "Issue"}</span>
+              </div>
+              <div className="check-detail">
+                {fmtValue(c.value)}
+                {c.detail ? ` · ${c.detail}` : ""} · criterion: {c.threshold}
+              </div>
+            </div>
+          </li>
+        ))}
+      </ul>
+      <figure className="gen-figure">
+        <img src={api.figureUrl("heldout_error_vs_radius.png")} alt="FNO error on held-out and training initial conditions vs. dam radius" loading="lazy" />
+      </figure>
+      <figure className="gen-figure">
+        <img src={api.figureUrl("heldout_offset_sweep.png")} alt="FNO error vs. distance of the dam centre from the origin" loading="lazy" />
       </figure>
     </section>
   );

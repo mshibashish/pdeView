@@ -79,3 +79,17 @@ def test_generalization_report(client):
     rep = res.json()
     assert rep["solver_validation"]["max_abs_error"] < 1e-6
     assert set(rep["families"]) >= {"radius", "centre", "height"}
+
+
+def test_heldout_cases_listed_and_served(client):
+    rep = client.get("/api/heldout")
+    if rep.status_code == 404:
+        pytest.skip("held-out report not generated")
+    h = rep.json()
+    assert h["verdict"] in ("PASS", "FAIL") and "per_case" not in h
+    held = [s for s in client.get("/api/samples").json() if s["split"] == "heldout"]
+    assert len(held) == 2 * h["design"]["n_per_family"]
+    # the served reference + a live rollout reproduce the report's per-case error
+    s = held[0]
+    stats = client.get(f"/api/samples/{s['key']}/stats").json()
+    assert stats["summary"]["nRMSE"] == pytest.approx(s["nRMSE"], rel=1e-4)

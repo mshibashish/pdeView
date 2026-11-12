@@ -18,6 +18,14 @@ import torch
 from pdeview.config import FNO_INITIAL_STEP, REPORTS_DIR
 from pdeview.data.store import SampleStore
 from pdeview.generalization import DamParams, reference
+from pdeview.heldout import (
+    HELDOUT_FAMILIES,
+    REF_FILE,
+    Case,
+    ReferenceStore,
+    initial_condition,
+    solve_reference,
+)
 from pdeview.inference import make_grid, persistence, rollout
 from pdeview.metrics import sample_stats
 from pdeview.model.checkpoint import load_fno
@@ -46,16 +54,46 @@ class ViewerService:
         self._sample_metrics = {p["key"]: p for p in per_sample}
         self._custom: OrderedDict[str, dict] = OrderedDict()
         self._custom_size = 8
+        # held-out in-distribution cases (reports/heldout.json); references from PyClaw when
+        # data/heldout/references.h5 exists, else re-solved with our solver on demand
+        self.heldout = _load_json("heldout.json")
+        self._heldout = {p["key"]: p for p in (self.heldout or {}).get("per_case", [])
+                         if p["family"] in HELDOUT_FAMILIES}
+        self._heldout_refs = ReferenceStore(REF_FILE) if self._heldout and REF_FILE.exists() \
+            else None
+        self._heldout_lock = threading.Lock()
+        self._heldout_frames: OrderedDict[str, np.ndarray] = OrderedDict()
 
     # ------------------------------------------------------------------ data access
     def has_key(self, key: str) -> bool:
+        if key in self.store.samples or key in self._heldout:
+            return True
         with self._lock:
-            return key in self.store.samples or key in self._custom
+            return key in self._custom
+
+    def _heldout_ground_truth(self, key: str) -> np.ndarray:
+        with self._heldout_lock:
+            if key in self._heldout_frames:
+                self._heldout_frames.move_to_end(key)
+                return self._heldout_frames[key]
+            if self._heldout_refs is not None and key in self._heldout_refs:
+                frames = self._heldout_refs.frames(key)
+            else:
+                p = self._heldout[key]
+                case = Case(key, p["family"], p["radius"], p["cx"], p["cy"], p["ic"])
+                frames = solve_reference(initial_condition(case))
+            frames.setflags(write=False)
+            self._heldout_frames[key] = frames
+            while len(self._heldout_frames) > 8:
+                self._heldout_frames.popitem(last=False)
+            return frames
 
     def ground_truth(self, key: str) -> np.ndarray:
         """Reference trajectory: PyClaw data for dataset samples, our solver for custom runs."""
         if key in self.store.samples:
             return self.store.frames(key)
+        if key in self._heldout:
+            return self._heldout_ground_truth(key)
         with self._lock:
             run = self._custom.get(key)
         if run is None:
@@ -141,7 +179,32 @@ class ViewerService:
                 "n_twins_total": len(twins.get(key, [])),
                 "twins_local": [t for t in twins.get(key, []) if t in local],
             })
+        for key, p in self._heldout.items():
+            out.append({
+                "key": key,
+                "split": "heldout",
+                "family": p["family"],
+                "dam_radius": p["radius"],
+                "cx": p["cx"],
+                "cy": p["cy"],
+                "nRMSE": p["nRMSE"],
+                "RMSE": p["RMSE"],
+                "max_error": p["max_error"],
+                "ic_cells": None,
+                "n_twins_total": 0,
+                "twins_local": [],
+            })
         return out
+
+    def heldout_summary(self) -> dict | None:
+        """The held-out report without per-case rows and time curves (for the web UI)."""
+        if self.heldout is None:
+            return None
+        fams = {name: {k: v for k, v in f.items() if k not in ("time_curves", "t")}
+                for name, f in self.heldout["families"].items()}
+        keep = ("generated_at", "verdict", "criteria", "reference_generator", "generator_check",
+                "solver_check", "design", "paper", "highlights")
+        return {k: self.heldout[k] for k in keep} | {"families": fams}
 
     def stats(self, key: str) -> dict:
         gt = self.ground_truth(key)

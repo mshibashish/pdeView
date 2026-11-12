@@ -1,6 +1,6 @@
 import type {
-  CustomRun, DamParams, Field, Generalization, Meta, SampleData, SampleStats, SampleSummary,
-  Verification,
+  CustomRun, DamParams, Field, Generalization, Heldout, Meta, SampleData, SampleStats,
+  SampleSummary, Verification,
 } from "./types";
 
 const BASE = "/api";
@@ -31,6 +31,7 @@ export const api = {
   samples: (signal?: AbortSignal) => json<SampleSummary[]>("/samples", signal),
   verification: (signal?: AbortSignal) => json<Verification>("/verification", signal),
   generalization: (signal?: AbortSignal) => json<Generalization>("/generalization", signal),
+  heldout: (signal?: AbortSignal) => json<Heldout>("/heldout", signal),
   async simulate(p: DamParams, signal?: AbortSignal): Promise<CustomRun> {
     const res = await fetch(`${BASE}/simulate`, {
       method: "POST",

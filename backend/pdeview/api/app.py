@@ -115,6 +115,14 @@ def verification(request: Request) -> JSONResponse:
     return JSONResponse(v)
 
 
+@app.get("/api/heldout")
+def heldout(request: Request) -> JSONResponse:
+    h = _svc(request).heldout_summary()
+    if h is None:
+        raise HTTPException(404, "run scripts/heldout_eval.py first")
+    return JSONResponse(h)
+
+
 @app.get("/api/generalization")
 def generalization() -> JSONResponse:
     path = REPORTS_DIR / "generalization.json"

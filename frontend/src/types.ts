@@ -54,7 +54,12 @@ export interface Meta {
 
 export interface SampleSummary {
   key: string;
-  split: "test" | "train";
+  /** PDEBench test split, PDEBench training probe, or a held-out case (not from PDEBench) */
+  split: "test" | "train" | "heldout";
+  /** held-out cases only */
+  family?: HeldoutFamily;
+  cx?: number;
+  cy?: number;
   dam_radius: number;
   nRMSE: number | null;
   RMSE: number | null;
@@ -172,4 +177,52 @@ export interface Generalization {
   };
   in_distribution_nRMSE: number;
   families: Record<"radius" | "centre" | "height" | "two_dams", GeneralizationCase[]>;
+}
+
+export type HeldoutFamily = "subcell" | "cellavg";
+
+export interface HeldoutCriterion {
+  family: HeldoutFamily | "all";
+  name: string;
+  value: unknown;
+  threshold: string;
+  pass: boolean;
+  detail: string;
+  kind: "gate" | "finding";
+}
+
+export interface HeldoutFamilySummary {
+  n: number;
+  nRMSE: number;
+  nRMSE_ci95: [number, number];
+  nRMSE_median: number;
+  nRMSE_max: number;
+  persistence_nRMSE: number;
+  lookup_nRMSE: number;
+  distance_to_training_set: number;
+  fno_beats_lookup_fraction: number;
+  pdebench_compat?: Metrics;
+  ratio_to_paper?: Metrics;
+  persistence_over_fno_nRMSE?: number;
+  gap_to_seen?: number;
+}
+
+/** In-distribution test on initial conditions that never occur in PDEBench's training split. */
+export interface Heldout {
+  generated_at: string;
+  verdict: "PASS" | "FAIL";
+  criteria: HeldoutCriterion[];
+  reference_generator: string;
+  generator_check: { n_checked: number; n_bit_identical: number; max_abs_difference: number };
+  solver_check: { n_cases: number; max_abs_difference: number; mean_nRMSE: number } | null;
+  design: {
+    seed: number;
+    n_per_family: number;
+    n_rejected_draws: number;
+    half_cell: number;
+    n_training_ics: number;
+    labels: Record<string, string>;
+  };
+  paper: Metrics;
+  families: Record<HeldoutFamily | "seen" | "offset", HeldoutFamilySummary>;
 }

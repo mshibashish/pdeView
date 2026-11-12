@@ -252,6 +252,23 @@ function ViewerBody({
               {custom.ood.length ? `Outside the training distribution: ${custom.ood.join("; ")}` : "Inside the training distribution"}
             </p>
           </div>
+        ) : summary?.split === "heldout" ? (
+          <div>
+            <h2>
+              Held-out case {data.key}
+              <span className="tag test">{summary.family === "subcell" ? "sub-cell dam position" : "cell-averaged dam wall"}</span>
+            </h2>
+            <p>
+              r = {fmtNum(summary.dam_radius)} ·{" "}
+              {summary.family === "subcell"
+                ? `centre (${fmtSigned(summary.cx ?? 0, 4)}, ${fmtSigned(summary.cy ?? 0, 4)}), within half a cell of the origin`
+                : "centred; cells cut by the dam wall hold the fraction of water inside it"}{" "}
+              · h = 2 inside, 1 outside · g = 1
+            </p>
+            <p className="ood-line in">
+              In distribution, but the initial condition never occurs in PDEBench&apos;s training split · reference from PyClaw
+            </p>
+          </div>
         ) : (
         <div>
           <h2>
@@ -418,9 +435,11 @@ function About({ meta }: { meta: Meta | null }) {
         what its test accuracy can tell us.
       </p>
       <p>
-        To test generalisation, pdeView includes its own finite-volume solver. It uses PDEBench&apos;s PyClaw scheme and
-        reproduces every downloaded sample to 6e-8. Use <em>Custom dam break</em> in the viewer to move, resize or
-        deepen the dam and see how the FNO responds.
+        The model was therefore also tested on 200 new in-distribution dam breaks whose initial conditions never occur in
+        training. They were generated with PyClaw exactly as PDEBench generated its data (<em>Viewer → Held-out</em>).
+        To probe beyond the training distribution, pdeView includes its own finite-volume solver, which matches PyClaw
+        to float32 precision. Use <em>Custom dam break</em> in the viewer to move, resize or deepen the dam and see how
+        the FNO responds.
       </p>
       <p className="note">
         Data and checkpoint: PDEBench (Takamoto et al., NeurIPS 2022), DaRUS doi:10.18419/darus-2986 and
