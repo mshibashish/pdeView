@@ -24,6 +24,31 @@ and ground truth side by side:
 - **Model verification tab** showing the full checkpoint audit, the held-out test and the generalisation study
   described below.
 
+## Live demo (static)
+
+**<https://mshibashish.github.io/pdeView/>** is a static build of the viewer on GitHub Pages. No server is
+involved:
+
+- **Precomputed in CI:** every sample (test split, training probe and held-out cases), its statistics, the
+  reports and the figures. The FNO predictions are rolled out with PyTorch at build time.
+- **In your browser:** custom dam breaks. A JavaScript port of the solver computes the reference, and the FNO,
+  exported to ONNX, is rolled out with onnxruntime-web.
+
+The ground-truth fields are exact copies of the PDEBench and PyClaw data. To keep the site small, the predictions
+are quantised to 16 bits, which changes them by at most about 3e-5 in *h*, far below the FNO's own error.
+
+How it differs from the full app:
+- Predictions are precomputed and quantised instead of rolled out live in PyTorch.
+- Custom dam breaks run on your device in JavaScript and WebAssembly, so they can take longer than on a server.
+  They are kept in memory only and are gone after a reload.
+- In the browser the model runs in ONNX Runtime. The export is checked to match PyTorch to within 1e-4 over a
+  full rollout.
+
+For the full app, follow the [quick start](#quick-start) to run it locally, or use Docker. The static build
+lives on the [`pages`](https://github.com/mshibashish/pdeView/tree/pages) branch, and
+[`docs/static-site.md`](https://github.com/mshibashish/pdeView/blob/pages/docs/static-site.md) there describes
+how it is made.
+
 ## The checkpoint was verified before use
 
 The task said the pretrained checkpoints *"need to be verified before use"*. `scripts/verify_checkpoint.py` does
@@ -193,11 +218,15 @@ cd frontend && npm run build   # type-check + bundle
 - Data and pretrained model: **PDEBench** (Takamoto et al., *PDEBench: An Extensive Benchmark for Scientific
   Machine Learning*, NeurIPS 2022 Datasets & Benchmarks). DaRUS
   [doi:10.18419/darus-2986](https://doi.org/10.18419/darus-2986) and
-  [doi:10.18419/darus-2987](https://doi.org/10.18419/darus-2987), CC BY 4.0. They are downloaded at runtime and
-  not redistributed here.
+  [doi:10.18419/darus-2987](https://doi.org/10.18419/darus-2987), CC BY 4.0. The full app downloads them at
+  runtime, and this repository does not contain them. The static demo redistributes 110 ground-truth fields
+  unchanged, FNO predictions derived from them (quantised), and the checkpoint converted to ONNX.
 - FNO: Li et al., *Fourier Neural Operator for Parametric Partial Differential Equations*, ICLR 2021. The
   architecture is adapted from PDEBench's MIT-licensed `fno.py`.
 - The metrics are our own implementation of PDEBench's definitions. No code was taken from PDEBench's
   non-commercial `metrics.py`.
+
+[`ATTRIBUTION.md`](ATTRIBUTION.md) gives the full citations, every change made to PDEBench material, and the
+licences of the frontend libraries and other third-party tools.
 
 Code: MIT License (see `LICENSE`).
