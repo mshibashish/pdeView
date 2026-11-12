@@ -172,7 +172,8 @@ def write_markdown(rep: dict, figs: dict[str, str]) -> None:
         f"contain only **{au['n_distinct_trajectories']} distinct trajectories**; "
         f"**{au['test_with_identical_train_trajectory']}/{au['n_test']} test samples are "
         "bit-identical to a training sample.** The reported accuracy is accuracy on trajectories"
-        " the model was trained on.",
+        " the model was trained on. A separate held-out test on new PyClaw simulations whose"
+        " initial conditions never occur in training ([HELDOUT.md](HELDOUT.md)) fills this gap.",
         f"* **Finding 2 - the checkpoint's stored validation loss is not reproducible** "
         f"({fp['reproduced_val_loss'] / fp['stored_val_loss']:.2f}x higher when recomputed), and"
         " the checkpoint is somewhat less accurate than the paper's table, suggesting it was"
@@ -255,10 +256,11 @@ def write_markdown(rep: dict, figs: dict[str, str]) -> None:
         "* Consequences: (i) test metrics measure how well the FNO reproduces training"
         " trajectories, not generalisation; (ii) the train-probe vs. test comparison is"
         f" uninformative (ratio {acc['train_over_test_nRMSE']:.2f}); (iii) PDEBench selects"
-        " the saved checkpoint on this same test split. Genuine generalisation can only be"
-        " probed with *new* simulations - see [GENERALIZATION.md](GENERALIZATION.md), where an"
-        " independent solver that reproduces PyClaw to 6e-8 shows the FNO is accurate only"
-        " inside the training distribution.",
+        " the saved checkpoint on this same test split. Unseen data can only come from *new*"
+        " simulations. [HELDOUT.md](HELDOUT.md) evaluates the FNO on 200 in-distribution dam"
+        " breaks generated with PyClaw whose initial conditions never occur in training."
+        " [GENERALIZATION.md](GENERALIZATION.md) goes outside the training distribution and"
+        " shows the FNO is accurate only inside it.",
         "",
         "## Finding 2: stored validation loss",
         "",

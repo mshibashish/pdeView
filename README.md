@@ -19,7 +19,10 @@ and ground truth side by side:
 - **Custom dam breaks**: set the radius, centre and depth. pdeView's own finite-volume solver (which reproduces
   PyClaw's ground truth to 6e-8) computes the reference, and the FNO is rolled out on it live. This shows where
   the model stops generalising.
-- **Model verification tab** showing the full checkpoint audit and the generalisation study described below.
+- **Held-out test cases**: 200 new in-distribution dam breaks generated with PyClaw, none of which occurs in
+  PDEBench's training split. Browse them in the sample list under *Held-out*.
+- **Model verification tab** showing the full checkpoint audit, the held-out test and the generalisation study
+  described below.
 
 ## The checkpoint was verified before use
 
@@ -45,12 +48,38 @@ anyone using this checkpoint or benchmark should know:
    2.17× the stored value. Training horizon, grid convention and split are ruled out. The checkpoint (June 2022)
    predates the data release (July 2022), so it was probably trained on an earlier revision of the data.
 
+### Is it accurate on unseen in-distribution data? Yes
+
+Finding 1 means PDEBench's generator *cannot* produce unseen data: the training split already contains all 81
+initial conditions it can make. `scripts/heldout_eval.py` keeps the physical specification (a centred circular
+dam, r ~ U(0.3, 0.7), h = 2 inside and 1 outside) and discretises it in two ways that never reproduce a training
+IC. The reference trajectories come from **PyClaw itself**, configured as PDEBench
+(`scripts/pyclaw_reference.py`), which reproduces all 110 downloaded samples **bit for bit**
+([`reports/HELDOUT.md`](reports/HELDOUT.md)):
+
+| Held-out set (n) | Differs from training by | FNO nRMSE (95 % CI) | PDEBench aggr. vs. paper | Persistence |
+|---|---|---|---|---|
+| Sub-cell dam position (100) | centre drawn within half a cell of the origin, which the grid cannot resolve | 7.8e-3 [7.4e-3, 8.2e-3] | 8.2e-3, **1.86×** | 0.16 (21× worse) |
+| Cell-averaged dam wall (100) | cut cells hold the fraction of water inside the wall | 4.4e-3 [4.3e-3, 4.4e-3] | 4.6e-3, **1.05×** | 0.16 (37× worse) |
+| *Control: all 81 training ICs* | nothing | 4.8e-3 [4.7e-3, 5.0e-3] | — | 0.16 |
+
+**All gates pass on both sets, so the model is satisfactorily accurate in distribution.** The same thresholds as
+above apply: nRMSE within 2× of the paper, every metric within 10×, at least 10× better than persistence. Two
+caveats:
+- The sub-cell set is 1.6× worse than the training ICs. The error grows steadily as the dam moves off the
+  grid vertex that every training dam was centred on, and 28 of the 100 cases individually exceed 2× the paper.
+- The distribution is so narrow that returning the nearest of the 81 training trajectories, chosen on the same
+  10 input frames, does as well (7.5e-3) or better (2.5e-3). The FNO's own error (about 4.8e-3) exceeds the gap
+  between neighbouring training trajectories.
+
+![FNO error on held-out and training initial conditions](reports/figures/heldout_error_vs_radius.png)
+
 ### Does it generalise? Only inside the training distribution
 
 The test split can't answer this, so `backend/pdeview/solver/swe.py` re-implements PDEBench's PyClaw setup in
 NumPy: wave propagation, the Roe solver with Harten–Hyman entropy fix, the MC limiter, dimensional splitting and
 PyClaw's CFL control. It **reproduces all 110 downloaded samples to max |Δh| = 6e-8**, the precision of the stored
-float32 data. `scripts/generalization_study.py` then rolls the FNO out on new dam breaks
+float32 data, and matches PyClaw's float32 output bit for bit on the 200 held-out initial conditions. `scripts/generalization_study.py` then rolls the FNO out on new dam breaks
 ([`reports/GENERALIZATION.md`](reports/GENERALIZATION.md)):
 
 | Initial condition | FNO nRMSE | vs. in-distribution (4.4e-3) | Persistence |
@@ -77,6 +106,7 @@ Requirements: [uv](https://docs.astral.sh/uv/) and Node 20+.
 uv sync                                    # Python 3.12 environment
 uv run python scripts/fetch_data.py        # checkpoint (11 MB, MD5-checked) + 110 samples (~730 MB, ~2 min)
 uv run python scripts/verify_checkpoint.py # optional: re-run the verification (~2.5 min on CPU)
+uv run python scripts/heldout_eval.py      # optional: held-out test (PyClaw via uv + Python 3.13, ~12 min)
 uv run python scripts/generalization_study.py  # optional: solver validation + generalisation (~2 min)
 
 # development: API on :8000, Vite dev server on :5173 (proxies /api)
@@ -132,7 +162,9 @@ be resumed.
 | `backend/pdeview/data/audit.py` | Finds duplicated trajectories across all 1000 samples |
 | `backend/pdeview/verification.py` | Verification checks (gates and findings) |
 | `backend/pdeview/solver/swe.py` | NumPy finite-volume SWE solver equivalent to PDEBench's PyClaw setup |
-| `backend/pdeview/generalization.py` | FNO evaluation on unseen initial conditions |
+| `backend/pdeview/heldout.py` | Held-out in-distribution test set: case design, PyClaw references, baselines, gates |
+| `scripts/pyclaw_reference.py` | Runs PyClaw with PDEBench's configuration (own Python 3.13 environment via uv) |
+| `backend/pdeview/generalization.py` | FNO evaluation on out-of-distribution initial conditions |
 | `backend/pdeview/service.py`, `api/app.py` | Rollout cache and HTTP API |
 | `frontend/src` | Viewer UI |
 | `reports/` | Generated verification report, dataset audit and figures |
@@ -142,11 +174,11 @@ be resumed.
 | Endpoint | Returns |
 |---|---|
 | `GET /api/meta` | Grid, times, physics, model card, verification summary |
-| `GET /api/samples` | Samples with dam radius, FNO error and duplicate count |
+| `GET /api/samples` | Dataset samples and held-out cases with dam radius, FNO error and duplicate count |
 | `GET /api/samples/{id}/field?kind=gt\|pred` | `float32[101,128,128]`, little-endian, `X-Shape` header |
 | `GET /api/samples/{id}/stats` | Per-frame RMSE, nRMSE and max error, persistence nRMSE, water volume |
 | `POST /api/simulate` | `{radius, cx, cy, h_in}` → runs the solver and the FNO; returns a key usable with the two endpoints above |
-| `GET /api/verification`, `GET /api/generalization` | Full reports (JSON) |
+| `GET /api/verification`, `GET /api/heldout`, `GET /api/generalization` | Reports (JSON) |
 
 ## Tests
 
