@@ -1,0 +1,606 @@
+{
+ "solver_validation": {
+  "n_samples": 110,
+  "max_abs_error": 5.960462923226828e-08,
+  "mean_nRMSE": 1.4772236627575203e-08,
+  "max_nRMSE": 1.6769617411035077e-08,
+  "seconds_per_trajectory": 0.3480310030281544,
+  "float32_spacing_at_h2": 2.384185791015625e-07
+ },
+ "in_distribution_nRMSE": 0.0043873707167053555,
+ "families": {
+  "radius": [
+   {
+    "params": {
+     "radius": 0.1,
+     "cx": 0.0,
+     "cy": 0.0,
+     "h_in": 2.0,
+     "h_out": 1.0,
+     "second": null
+    },
+    "ood": [
+     "radius 0.1 outside training range 0.3-0.7"
+    ],
+    "nRMSE": 0.01936752078129795,
+    "nRMSE_final": 0.0223897042436222,
+    "max_error": 0.3577423691749573,
+    "persistence_nRMSE": 0.02696192769092766,
+    "skill": 0.28167151090554743,
+    "volume_drift_final": -0.0027976260678992393
+   },
+   {
+    "params": {
+     "radius": 0.15,
+     "cx": 0.0,
+     "cy": 0.0,
+     "h_in": 2.0,
+     "h_out": 1.0,
+     "second": null
+    },
+    "ood": [
+     "radius 0.15 outside training range 0.3-0.7"
+    ],
+    "nRMSE": 0.020001304792332263,
+    "nRMSE_final": 0.025190713199002054,
+    "max_error": 0.4279196858406067,
+    "persistence_nRMSE": 0.04619376330963238,
+    "skill": 0.5670128744812275,
+    "volume_drift_final": -0.002541580127520926
+   },
+   {
+    "params": {
+     "radius": 0.2,
+     "cx": 0.0,
+     "cy": 0.0,
+     "h_in": 2.0,
+     "h_out": 1.0,
+     "second": null
+    },
+    "ood": [
+     "radius 0.2 outside training range 0.3-0.7"
+    ],
+    "nRMSE": 0.017060776727368537,
+    "nRMSE_final": 0.026156924165990258,
+    "max_error": 0.48111748695373535,
+    "persistence_nRMSE": 0.06209787596727844,
+    "skill": 0.7252598988030048,
+    "volume_drift_final": -0.0017907569226532916
+   },
+   {
+    "params": {
+     "radius": 0.25,
+     "cx": 0.0,
+     "cy": 0.0,
+     "h_in": 2.0,
+     "h_out": 1.0,
+     "second": null
+    },
+    "ood": [
+     "radius 0.25 outside training range 0.3-0.7"
+    ],
+    "nRMSE": 0.010590120048109905,
+    "nRMSE_final": 0.015569356041629723,
+    "max_error": 0.4211515188217163,
+    "persistence_nRMSE": 0.08221830201775343,
+    "skill": 0.8711951014772457,
+    "volume_drift_final": -0.0009346424500648043
+   },
+   {
+    "params": {
+     "radius": 0.3,
+     "cx": 0.0,
+     "cy": 0.0,
+     "h_in": 2.0,
+     "h_out": 1.0,
+     "second": null
+    },
+    "ood": [],
+    "nRMSE": 0.005853281586136742,
+    "nRMSE_final": 0.005862121371422071,
+    "max_error": 0.24401772022247314,
+    "persistence_nRMSE": 0.10545888447958529,
+    "skill": 0.9444970273010064,
+    "volume_drift_final": -0.00026834362835925774
+   },
+   {
+    "params": {
+     "radius": 0.4,
+     "cx": 0.0,
+     "cy": 0.0,
+     "h_in": 2.0,
+     "h_out": 1.0,
+     "second": null
+    },
+    "ood": [],
+    "nRMSE": 0.004316094955602841,
+    "nRMSE_final": 0.004621077539872358,
+    "max_error": 0.11580932140350342,
+    "persistence_nRMSE": 0.1404720569033838,
+    "skill": 0.9692743521327417,
+    "volume_drift_final": -0.000315009456526405
+   },
+   {
+    "params": {
+     "radius": 0.5,
+     "cx": 0.0,
+     "cy": 0.0,
+     "h_in": 2.0,
+     "h_out": 1.0,
+     "second": null
+    },
+    "ood": [],
+    "nRMSE": 0.0043873707167053555,
+    "nRMSE_final": 0.004887775501636257,
+    "max_error": 0.12071359157562256,
+    "persistence_nRMSE": 0.16750896282038005,
+    "skill": 0.9738081434997008,
+    "volume_drift_final": -0.00029437560504397275
+   },
+   {
+    "params": {
+     "radius": 0.6,
+     "cx": 0.0,
+     "cy": 0.0,
+     "h_in": 2.0,
+     "h_out": 1.0,
+     "second": null
+    },
+    "ood": [],
+    "nRMSE": 0.004873711236213953,
+    "nRMSE_final": 0.005325548788326726,
+    "max_error": 0.10181450843811035,
+    "persistence_nRMSE": 0.18455271727053027,
+    "skill": 0.9735917665787076,
+    "volume_drift_final": -0.0007691639700792008
+   },
+   {
+    "params": {
+     "radius": 0.7,
+     "cx": 0.0,
+     "cy": 0.0,
+     "h_in": 2.0,
+     "h_out": 1.0,
+     "second": null
+    },
+    "ood": [],
+    "nRMSE": 0.006477650377437776,
+    "nRMSE_final": 0.013560927070468264,
+    "max_error": 0.11207699775695801,
+    "persistence_nRMSE": 0.19770022023151085,
+    "skill": 0.9672349865374337,
+    "volume_drift_final": -0.006768142893119333
+   },
+   {
+    "params": {
+     "radius": 0.8,
+     "cx": 0.0,
+     "cy": 0.0,
+     "h_in": 2.0,
+     "h_out": 1.0,
+     "second": null
+    },
+    "ood": [
+     "radius 0.8 outside training range 0.3-0.7"
+    ],
+    "nRMSE": 0.02455186750120342,
+    "nRMSE_final": 0.03382748498291619,
+    "max_error": 0.2751197814941406,
+    "persistence_nRMSE": 0.20505573752200856,
+    "skill": 0.8802673468301843,
+    "volume_drift_final": -0.016527500596657307
+   },
+   {
+    "params": {
+     "radius": 0.9,
+     "cx": 0.0,
+     "cy": 0.0,
+     "h_in": 2.0,
+     "h_out": 1.0,
+     "second": null
+    },
+    "ood": [
+     "radius 0.9 outside training range 0.3-0.7"
+    ],
+    "nRMSE": 0.09105381758728141,
+    "nRMSE_final": 0.08241885076127906,
+    "max_error": 2.3425885438919067,
+    "persistence_nRMSE": 0.21062350945864755,
+    "skill": 0.5676939491640256,
+    "volume_drift_final": -0.01164697042423335
+   },
+   {
+    "params": {
+     "radius": 1.0,
+     "cx": 0.0,
+     "cy": 0.0,
+     "h_in": 2.0,
+     "h_out": 1.0,
+     "second": null
+    },
+    "ood": [
+     "radius 1 outside training range 0.3-0.7"
+    ],
+    "nRMSE": 0.17701799464795231,
+    "nRMSE_final": 0.18925831468589133,
+    "max_error": 5.904948115348816,
+    "persistence_nRMSE": 0.21415022406399298,
+    "skill": 0.17339337177132585,
+    "volume_drift_final": 0.01922970675982527
+   },
+   {
+    "params": {
+     "radius": 1.2,
+     "cx": 0.0,
+     "cy": 0.0,
+     "h_in": 2.0,
+     "h_out": 1.0,
+     "second": null
+    },
+    "ood": [
+     "radius 1.2 outside training range 0.3-0.7"
+    ],
+    "nRMSE": 0.4654904521432102,
+    "nRMSE_final": 0.9249711476702334,
+    "max_error": 11.701797127723694,
+    "persistence_nRMSE": 0.2188772220906933,
+    "skill": -1.126719480889295,
+    "volume_drift_final": 0.2727735971683618
+   }
+  ],
+  "centre": [
+   {
+    "params": {
+     "radius": 0.5,
+     "cx": 0.0,
+     "cy": 0.0,
+     "h_in": 2.0,
+     "h_out": 1.0,
+     "second": null
+    },
+    "ood": [],
+    "nRMSE": 0.0043873707167053555,
+    "nRMSE_final": 0.004887775501636257,
+    "max_error": 0.12071359157562256,
+    "persistence_nRMSE": 0.16750896282038005,
+    "skill": 0.9738081434997008,
+    "volume_drift_final": -0.00029437560504397275
+   },
+   {
+    "params": {
+     "radius": 0.5,
+     "cx": 0.1,
+     "cy": 0.0,
+     "h_in": 2.0,
+     "h_out": 1.0,
+     "second": null
+    },
+    "ood": [
+     "dam not centred at the origin"
+    ],
+    "nRMSE": 0.02721516983058902,
+    "nRMSE_final": 0.023310313856770855,
+    "max_error": 0.5366677045822144,
+    "persistence_nRMSE": 0.16654706057758653,
+    "skill": 0.8365917132598643,
+    "volume_drift_final": 0.001478600158453247
+   },
+   {
+    "params": {
+     "radius": 0.5,
+     "cx": 0.25,
+     "cy": 0.0,
+     "h_in": 2.0,
+     "h_out": 1.0,
+     "second": null
+    },
+    "ood": [
+     "dam not centred at the origin"
+    ],
+    "nRMSE": 0.05776738158806162,
+    "nRMSE_final": 0.05609834871976176,
+    "max_error": 0.8608082830905914,
+    "persistence_nRMSE": 0.16654706057758653,
+    "skill": 0.6531467959402952,
+    "volume_drift_final": 0.002258434087471839
+   },
+   {
+    "params": {
+     "radius": 0.5,
+     "cx": 0.5,
+     "cy": 0.0,
+     "h_in": 2.0,
+     "h_out": 1.0,
+     "second": null
+    },
+    "ood": [
+     "dam not centred at the origin"
+    ],
+    "nRMSE": 0.09397664307868667,
+    "nRMSE_final": 0.08921133198519121,
+    "max_error": 0.9137833118438721,
+    "persistence_nRMSE": 0.1672195227647605,
+    "skill": 0.43800435783511804,
+    "volume_drift_final": -0.0028155259770406005
+   },
+   {
+    "params": {
+     "radius": 0.5,
+     "cx": 0.75,
+     "cy": 0.0,
+     "h_in": 2.0,
+     "h_out": 1.0,
+     "second": null
+    },
+    "ood": [
+     "dam not centred at the origin"
+    ],
+    "nRMSE": 0.11635490826302697,
+    "nRMSE_final": 0.11576749620548785,
+    "max_error": 1.5232298374176025,
+    "persistence_nRMSE": 0.16721953028761954,
+    "skill": 0.3041787160692584,
+    "volume_drift_final": -0.02284895728478431
+   },
+   {
+    "params": {
+     "radius": 0.5,
+     "cx": 1.0,
+     "cy": 0.0,
+     "h_in": 2.0,
+     "h_out": 1.0,
+     "second": null
+    },
+    "ood": [
+     "dam not centred at the origin"
+    ],
+    "nRMSE": 0.1268556401384155,
+    "nRMSE_final": 0.1261711882032169,
+    "max_error": 1.2901949882507324,
+    "persistence_nRMSE": 0.1664963514351601,
+    "skill": 0.2380875674154468,
+    "volume_drift_final": -0.040476448311017266
+   },
+   {
+    "params": {
+     "radius": 0.5,
+     "cx": 0.5,
+     "cy": 0.5,
+     "h_in": 2.0,
+     "h_out": 1.0,
+     "second": null
+    },
+    "ood": [
+     "dam not centred at the origin"
+    ],
+    "nRMSE": 0.12306850105516381,
+    "nRMSE_final": 0.12644183022553515,
+    "max_error": 1.4730967283248901,
+    "persistence_nRMSE": 0.16668891468315297,
+    "skill": 0.2616875495944291,
+    "volume_drift_final": -0.04111060502261099
+   },
+   {
+    "params": {
+     "radius": 0.5,
+     "cx": 1.0,
+     "cy": 1.0,
+     "h_in": 2.0,
+     "h_out": 1.0,
+     "second": null
+    },
+    "ood": [
+     "dam not centred at the origin"
+    ],
+    "nRMSE": 0.11958982312044363,
+    "nRMSE_final": 0.13649686086621163,
+    "max_error": 1.1817851066589355,
+    "persistence_nRMSE": 0.1661657555692934,
+    "skill": 0.28029802102892953,
+    "volume_drift_final": -0.01924857088350551
+   },
+   {
+    "params": {
+     "radius": 0.5,
+     "cx": -1.0,
+     "cy": -0.5,
+     "h_in": 2.0,
+     "h_out": 1.0,
+     "second": null
+    },
+    "ood": [
+     "dam not centred at the origin"
+    ],
+    "nRMSE": 0.11476630872889261,
+    "nRMSE_final": 0.1127252882673994,
+    "max_error": 1.2114179134368896,
+    "persistence_nRMSE": 0.16659000734593696,
+    "skill": 0.31108527721850954,
+    "volume_drift_final": -0.04369224845407216
+   }
+  ],
+  "height": [
+   {
+    "params": {
+     "radius": 0.5,
+     "cx": 0.0,
+     "cy": 0.0,
+     "h_in": 1.25,
+     "h_out": 1.0,
+     "second": null
+    },
+    "ood": [
+     "inner depth 1.25 (training: 2)"
+    ],
+    "nRMSE": 0.03289449782022757,
+    "nRMSE_final": 0.029478509737872107,
+    "max_error": 0.6266793608665466,
+    "persistence_nRMSE": 0.04245560901948575,
+    "skill": 0.22520254496572978,
+    "volume_drift_final": -0.004999821531819548
+   },
+   {
+    "params": {
+     "radius": 0.5,
+     "cx": 0.0,
+     "cy": 0.0,
+     "h_in": 1.5,
+     "h_out": 1.0,
+     "second": null
+    },
+    "ood": [
+     "inner depth 1.5 (training: 2)"
+    ],
+    "nRMSE": 0.03887142893704212,
+    "nRMSE_final": 0.032886108203359035,
+    "max_error": 0.8845023512840271,
+    "persistence_nRMSE": 0.08483402631565756,
+    "skill": 0.541794364534744,
+    "volume_drift_final": -0.0038271545182193556
+   },
+   {
+    "params": {
+     "radius": 0.5,
+     "cx": 0.0,
+     "cy": 0.0,
+     "h_in": 1.75,
+     "h_out": 1.0,
+     "second": null
+    },
+    "ood": [
+     "inner depth 1.75 (training: 2)"
+    ],
+    "nRMSE": 0.030286352468686203,
+    "nRMSE_final": 0.023961610837586005,
+    "max_error": 0.7588946223258972,
+    "persistence_nRMSE": 0.1266167689363318,
+    "skill": 0.7608029906061222,
+    "volume_drift_final": -0.0019074029225292222
+   },
+   {
+    "params": {
+     "radius": 0.5,
+     "cx": 0.0,
+     "cy": 0.0,
+     "h_in": 2.0,
+     "h_out": 1.0,
+     "second": null
+    },
+    "ood": [],
+    "nRMSE": 0.0043873707167053555,
+    "nRMSE_final": 0.004887775501636257,
+    "max_error": 0.12071359157562256,
+    "persistence_nRMSE": 0.16750896282038005,
+    "skill": 0.9738081434997008,
+    "volume_drift_final": -0.00029437560504397275
+   },
+   {
+    "params": {
+     "radius": 0.5,
+     "cx": 0.0,
+     "cy": 0.0,
+     "h_in": 2.25,
+     "h_out": 1.0,
+     "second": null
+    },
+    "ood": [
+     "inner depth 2.25 (training: 2)"
+    ],
+    "nRMSE": 0.04801606801063957,
+    "nRMSE_final": 0.043197330077752776,
+    "max_error": 0.972132682800293,
+    "persistence_nRMSE": 0.20731673650435486,
+    "skill": 0.7683927076016318,
+    "volume_drift_final": 0.0012076110359620085
+   },
+   {
+    "params": {
+     "radius": 0.5,
+     "cx": 0.0,
+     "cy": 0.0,
+     "h_in": 2.5,
+     "h_out": 1.0,
+     "second": null
+    },
+    "ood": [
+     "inner depth 2.5 (training: 2)"
+    ],
+    "nRMSE": 0.12644087788431857,
+    "nRMSE_final": 0.10865599535862736,
+    "max_error": 2.825624108314514,
+    "persistence_nRMSE": 0.24588064436808468,
+    "skill": 0.48576319128627354,
+    "volume_drift_final": 0.0033074806505639653
+   },
+   {
+    "params": {
+     "radius": 0.5,
+     "cx": 0.0,
+     "cy": 0.0,
+     "h_in": 3.0,
+     "h_out": 1.0,
+     "second": null
+    },
+    "ood": [
+     "inner depth 3 (training: 2)"
+    ],
+    "nRMSE": 0.5489314103837009,
+    "nRMSE_final": 1.3831099450328348,
+    "max_error": 19.46261727809906,
+    "persistence_nRMSE": 0.3188561150988145,
+    "skill": -0.7215646317888096,
+    "volume_drift_final": 0.22738048750347284
+   }
+  ],
+  "two_dams": [
+   {
+    "params": {
+     "radius": 0.4,
+     "cx": -0.8,
+     "cy": 0.0,
+     "h_in": 2.0,
+     "h_out": 1.0,
+     "second": [
+      0.8,
+      0.0,
+      0.4
+     ]
+    },
+    "ood": [
+     "dam not centred at the origin",
+     "two dams"
+    ],
+    "nRMSE": 0.1462132353912689,
+    "nRMSE_final": 0.1345596969185702,
+    "max_error": 1.4787479415535927,
+    "persistence_nRMSE": 0.191355263187706,
+    "skill": 0.2359069044897707,
+    "volume_drift_final": -0.05012568583324406
+   },
+   {
+    "params": {
+     "radius": 0.35,
+     "cx": -0.6,
+     "cy": -0.6,
+     "h_in": 2.0,
+     "h_out": 1.0,
+     "second": [
+      0.6,
+      0.6,
+      0.35
+     ]
+    },
+    "ood": [
+     "dam not centred at the origin",
+     "two dams"
+    ],
+    "nRMSE": 0.11980380388814374,
+    "nRMSE_final": 0.12898054938773448,
+    "max_error": 1.1344469487667084,
+    "persistence_nRMSE": 0.17116935339676487,
+    "skill": 0.3000861339328512,
+    "volume_drift_final": -0.050586906531884135
+   }
+  ]
+ }
+}
