@@ -90,7 +90,11 @@ jobs:
 
       # Runs after the build because Vite empties dist/.
       - name: Export static API
-        run: uv run --group static python scripts/export_static.py --out frontend/dist/static-api
+        run: |
+          uv run --group static python scripts/export_static.py --out frontend/dist/static-api
+          rm -f frontend/dist/static-api/.export-state.json  # resume bookkeeping, not site content
+          # Ship the licence texts with the bundled code and the redistributed data.
+          cp LICENSE ATTRIBUTION.md frontend/dist/
 
       - name: Check site size
         working-directory: frontend/dist

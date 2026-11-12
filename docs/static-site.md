@@ -29,8 +29,8 @@ cd .. && uv run --group static python scripts/export_static.py --out frontend/di
 
 | File | Content |
 |---|---|
-| `manifest.json` | `{format: 1, generated_at, git_sha, n_samples, codecs: {gt, pred}, pred_max_abs_error, model: "model/fno_step.onnx"}` |
-| `meta.json` | Same JSON as `GET /api/meta`, plus `"static": {generated_at, git_sha, pred_device, pred_codec, pred_max_abs_error}` |
+| `manifest.json` | `{format: 1, generated_at, git_sha, n_samples, codecs: {gt: 1, pred: 2}, pred_max_abs_error, model: "model/fno_step.onnx"}` (codec ids as in the field header) |
+| `meta.json` | Same JSON as `GET /api/meta`, plus `"static": {generated_at, git_sha, pred_device, pred_codec, pred_max_abs_error}` (`pred_codec` is the codec id) |
 | `samples.json` | Same as `GET /api/samples` |
 | `verification.json`, `heldout.json`, `generalization.json` | Same as `GET /api/verification`, `/api/heldout`, `/api/generalization` |
 | `figures/<name>` | Same as `GET /api/report/figures/<name>`, for every file in `reports/figures/` |
@@ -39,7 +39,8 @@ cd .. && uv run --group static python scripts/export_static.py --out frontend/di
 | `model/fno_step.onnx` | One FNO step, described below |
 | `model/model.json` | `{input: {name, shape, dtype}, output: {...}, initial_step: 10, opset, parity: {sample, steps, max_abs_diff_vs_torch, nrmse_torch, nrmse_onnx}}` |
 
-The keys are the ones in `samples.json` (test, train probe and held-out; about 310 in all). All keys are URL-safe as-is.
+The keys are the ones in `samples.json` (test, train probe and held-out; about 310 in all). All keys are URL-safe as-is. The exporter also keeps a resume file, `.export-state.json`; the workflow deletes it
+before upload.
 
 ## Field encoding (`*.bin`)
 

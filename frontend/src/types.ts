@@ -48,7 +48,7 @@ export interface Meta {
     generated_at: string;
     git_sha: string;
     pred_device: string;
-    pred_codec: string;
+    pred_codec: number;
     pred_max_abs_error: number;
   };
   dataset: {
