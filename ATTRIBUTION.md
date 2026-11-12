@@ -23,11 +23,11 @@ What the static demo contains, and the changes made:
 | Content | Changes |
 |---|---|
 | Ground-truth water height *h* of 110 samples: the test split (0900–0999) and 10 training samples, with the grid and time coordinates | **Unchanged values** (float32, bit-identical to the file). Only the subset and the container differ: each `[101, 128, 128]` field (channel axis dropped) is stored losslessly as `static-api/samples/<key>/gt.bin` (byte-shuffled, gzip). |
-| FNO predictions for every sample | **Derived and quantised.** Rolled out in CI with the checkpoint below from the first 10 ground-truth frames, then stored as 16-bit integers (`q = round((h − lo) / scale)`, delta-coded along time). The maximum absolute error is half a quantisation step, about 3e-5 or less in *h*. The exact bound is `pred_max_abs_error` in `static-api/manifest.json`. |
+| FNO predictions for every sample | **Derived and quantised.** Rolled out in CI with the checkpoint below from the first 10 ground-truth frames, then stored as 16-bit integers (`q = round((h − lo) / scale)`, delta-coded along time). The maximum absolute error is half a quantisation step, below 1.5e-5 in *h* in the current build. The exact bound is `pred_max_abs_error` in `static-api/manifest.json`. |
 | Error statistics, reports and figures | **Derived.** Computed from the data and the predictions; the statistics use the unquantised fields. |
 
-Not PDEBench data: the ground truth of the 200 held-out cases, which pdeView computed with PyClaw (see below), and
-the custom dam breaks that the demo computes in the visitor's browser.
+Not PDEBench data: the ground truth of the 200 held-out cases, generated with PDEBench's PyClaw configuration (see
+below), and the custom dam breaks that the demo computes in the visitor's browser.
 
 ## PDEBench pretrained FNO (CC BY 4.0)
 
@@ -133,8 +133,9 @@ SOFTWARE.
 
 - **Clawpack / PyClaw** 5.14.0: [BSD 3-Clause](https://github.com/clawpack/clawpack/blob/master/LICENSE),
   Copyright (c) 1994-2018, Clawpack Developers. `scripts/pyclaw_reference.py` runs PyClaw with PDEBench's
-  configuration to compute the ground truth of the 200 held-out cases. The static demo contains those computed
-  fields (float32, unchanged) but no Clawpack code. pdeView's own solver (`backend/pdeview/solver/swe.py`, and
+  configuration to compute the ground truth of the 200 held-out cases. The static demo's build computes the same
+  fields with pdeView's own solver, which reproduces PyClaw's float32 output bit for bit on all 200 cases; it
+  contains no Clawpack code. pdeView's own solver (`backend/pdeview/solver/swe.py`, and
   its JavaScript port in the static demo) is an independent implementation and does not use Clawpack code.
   Clawpack asks to be cited as:
   - Clawpack Development Team (2026). *Clawpack software*, version 5.14.0. <http://www.clawpack.org>
