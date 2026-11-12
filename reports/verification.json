@@ -1,5 +1,5 @@
 {
- "generated_at": "2026-11-11T20:00:41+00:00",
+ "generated_at": "2026-11-12T03:29:04+00:00",
  "verdict": "PASS",
  "criteria": [
   {
@@ -97,7 +97,7 @@
   "torch": "2.15.0",
   "numpy": "2.5.4",
   "machine": "Darwin arm64",
-  "runtime_seconds": 182.9
+  "runtime_seconds": 209.7
  },
  "checkpoint": {
   "path": "/Users/shibashishmahapatra/Desktop/pythonProjects/pdeView/checkpoints/2D_rdb_NA_NA_FNO.pt",
@@ -716,9 +716,9 @@
   "worst": "0972"
  },
  "device": {
-  "cpu_seconds_per_sample": 1.3337059352266476,
-  "cpu_seconds_single_sample": 1.3405676249531098,
-  "mps_seconds_single_sample": 0.31760012498125434,
+  "cpu_seconds_per_sample": 1.5318954927899706,
+  "cpu_seconds_single_sample": 1.4403165830299258,
+  "mps_seconds_single_sample": 0.32126458396669477,
   "mps_max_abs_diff_vs_cpu": 1.9311904907226562e-05,
   "mps_agrees": true
  },
