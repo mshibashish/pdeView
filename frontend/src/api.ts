@@ -2,16 +2,25 @@ import type {
   CustomRun, DamParams, Field, Generalization, Heldout, Meta, SampleData, SampleStats,
   SampleSummary, Verification,
 } from "./types";
+import type { SimProgress } from "./static/protocol";
 
 const BASE = "/api";
 
+/** Static build for GitHub Pages (VITE_STATIC=1): precomputed files, custom runs in the browser. */
+export const STATIC = import.meta.env.VITE_STATIC === "1";
+
+/** Loaded only in static builds, so the server build carries no static-mode code. */
+const staticApi = () => import("./static/staticApi");
+
 async function json<T>(path: string, signal?: AbortSignal): Promise<T> {
+  if (STATIC) return (await staticApi()).staticJson<T>(path, signal);
   const res = await fetch(`${BASE}${path}`, { signal });
   if (!res.ok) throw new Error(`${path}: HTTP ${res.status}`);
   return (await res.json()) as T;
 }
 
 async function field(key: string, kind: "gt" | "pred", signal?: AbortSignal): Promise<Field> {
+  if (STATIC) return (await staticApi()).staticField(key, kind, signal);
   const res = await fetch(`${BASE}/samples/${encodeURIComponent(key)}/field?kind=${kind}`, {
     signal,
   });
@@ -26,13 +35,16 @@ async function field(key: string, kind: "gt" | "pred", signal?: AbortSignal): Pr
   return { data, nt, nx, ny };
 }
 
+export type { SimProgress };
+
 export const api = {
   meta: (signal?: AbortSignal) => json<Meta>("/meta", signal),
   samples: (signal?: AbortSignal) => json<SampleSummary[]>("/samples", signal),
   verification: (signal?: AbortSignal) => json<Verification>("/verification", signal),
   generalization: (signal?: AbortSignal) => json<Generalization>("/generalization", signal),
   heldout: (signal?: AbortSignal) => json<Heldout>("/heldout", signal),
-  async simulate(p: DamParams, signal?: AbortSignal): Promise<CustomRun> {
+  async simulate(p: DamParams, signal?: AbortSignal, onProgress?: (p: SimProgress) => void): Promise<CustomRun> {
+    if (STATIC) return (await staticApi()).staticSimulate(p, signal, onProgress);
     const res = await fetch(`${BASE}/simulate`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -42,8 +54,15 @@ export const api = {
     if (!res.ok) throw new Error(`simulate: HTTP ${res.status}`);
     return (await res.json()) as CustomRun;
   },
-  figureUrl: (name: string) => `${BASE}/report/figures/${encodeURIComponent(name)}`,
+  figureUrl: (name: string) =>
+    STATIC
+      ? `${import.meta.env.BASE_URL}static-api/figures/${encodeURIComponent(name)}`
+      : `${BASE}/report/figures/${encodeURIComponent(name)}`,
   async sample(key: string, signal?: AbortSignal): Promise<SampleData> {
+    if (STATIC) {
+      const hit = (await staticApi()).customSample(key);
+      if (hit) return hit;
+    }
     // The prediction may need to be computed server-side (~1 s); fetch all three in parallel.
     const [gt, pred, stats] = await Promise.all([
       field(key, "gt", signal),

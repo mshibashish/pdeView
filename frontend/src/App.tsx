@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { api, at, frame as frameOf } from "./api";
+import { STATIC, api, at, frame as frameOf } from "./api";
 import { lut, type Theme } from "./colormap";
 import { Colorbar } from "./components/Colorbar";
 import { CustomPanel } from "./components/CustomPanel";
@@ -102,9 +102,15 @@ export default function App() {
         </button>
       </header>
 
+      {STATIC && <StaticBanner meta={meta} />}
+
       {bootError && (
         <div className="panel error-box" role="alert">
-          Could not reach the backend ({bootError}). Start it with <code>uv run uvicorn pdeview.api.app:app</code>.
+          {STATIC ? (
+            <>Could not load the demo data ({bootError}).</>
+          ) : (
+            <>Could not reach the backend ({bootError}). Start it with <code>uv run uvicorn pdeview.api.app:app</code>.</>
+          )}
         </div>
       )}
 
@@ -120,7 +126,44 @@ export default function App() {
       )}
       {tab === "verification" && <VerificationView />}
       {tab === "about" && <About meta={meta} />}
+      {STATIC && <SiteFooter />}
     </div>
+  );
+}
+
+const REPO = "https://github.com/mshibashish/pdeView";
+
+/** Static build only: say what this page is and where the full app lives. */
+function StaticBanner({ meta }: { meta: Meta | null }) {
+  const q = meta?.static?.pred_max_abs_error;
+  return (
+    <div className="static-banner" role="note">
+      <svg viewBox="0 0 16 16" aria-hidden><circle cx="8" cy="8" r="6.5" /><path d="M8 7.2v4M8 4.8v.2" /></svg>
+      <p>
+        <strong>Static demo.</strong> This copy runs on GitHub Pages without a server. The FNO predictions were
+        precomputed{q !== undefined ? ` and are stored to within ${fmtSci(q, 1)}` : ""}. Custom dam breaks run in your
+        browser. For the full app with the live PyTorch backend,{" "}
+        <a href={`${REPO}#quick-start`} target="_blank" rel="noreferrer">run it locally from the repository</a>.
+      </p>
+    </div>
+  );
+}
+
+function SiteFooter() {
+  return (
+    <footer className="site-footer">
+      <p>
+        Data and pretrained FNO: PDEBench (Takamoto et al., NeurIPS 2022), DaRUS{" "}
+        <a href="https://doi.org/10.18419/darus-2986" target="_blank" rel="noreferrer">doi:10.18419/darus-2986</a> and{" "}
+        <a href="https://doi.org/10.18419/darus-2987" target="_blank" rel="noreferrer">doi:10.18419/darus-2987</a>,{" "}
+        <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noreferrer">CC BY 4.0</a>. Ground-truth
+        fields are shown unchanged. FNO predictions are derived from the checkpoint and quantised for this site.
+      </p>
+      <p>
+        <a href={`${REPO}/blob/main/ATTRIBUTION.md`} target="_blank" rel="noreferrer">Full attribution</a> ·{" "}
+        <a href={REPO} target="_blank" rel="noreferrer">Source code (MIT)</a>
+      </p>
+    </footer>
   );
 }
 
@@ -152,7 +195,9 @@ function Viewer({ meta, sampleKey, summary, custom, theme }: {
 
   if (!sampleKey) return <div className="panel">Select a sample.</div>;
   if (error) return <div className="panel error-box">Could not load sample {sampleKey}: {error}</div>;
-  if (!data) return <div className="panel loading">Loading sample {sampleKey} (running the FNO rollout)…</div>;
+  if (!data) {
+    return <div className="panel loading">Loading sample {sampleKey}{STATIC ? "" : " (running the FNO rollout)"}…</div>;
+  }
 
   return (
     <ViewerBody
@@ -441,6 +486,16 @@ function About({ meta }: { meta: Meta | null }) {
         to float32 precision. Use <em>Custom dam break</em> in the viewer to move, resize or deepen the dam and see how
         the FNO responds.
       </p>
+      {STATIC && (
+        <p>
+          <strong>This is the static version.</strong> All data and FNO predictions for the listed samples were
+          precomputed by a GitHub Actions workflow and are served as files. The predictions are stored as 16-bit
+          values{meta?.static ? ` (max error ${fmtSci(meta.static.pred_max_abs_error, 1)})` : ""}. Custom dam breaks run in your
+          browser: a JavaScript port of pdeView&apos;s solver, which gives the same result as the Python version bit for
+          bit, and the FNO exported to ONNX and run with onnxruntime-web. The full app, with the FastAPI server and
+          live PyTorch inference, runs locally (see the repository&apos;s quick start).
+        </p>
+      )}
       <p className="note">
         Data and checkpoint: PDEBench (Takamoto et al., NeurIPS 2022), DaRUS doi:10.18419/darus-2986 and
         doi:10.18419/darus-2987, CC BY 4.0. Source: <a href="https://github.com/mshibashish/pdeView" target="_blank" rel="noreferrer">github.com/mshibashish/pdeView</a>.

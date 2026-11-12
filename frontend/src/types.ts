@@ -43,6 +43,14 @@ export interface Meta {
     clean: Metrics | null;
     persistence_over_fno_nRMSE: number | null;
   };
+  /** Present only in the static build (docs/static-site.md). */
+  static?: {
+    generated_at: string;
+    git_sha: string;
+    pred_device: string;
+    pred_codec: string;
+    pred_max_abs_error: number;
+  };
   dataset: {
     n_samples: number | null;
     n_distinct_trajectories: number | null;

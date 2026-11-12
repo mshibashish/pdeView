@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { api } from "../api";
+import { STATIC, api, type SimProgress } from "../api";
 import type { CustomRun, DamParams } from "../types";
 
 interface Props {
@@ -37,22 +37,31 @@ function Slider({ label, value, min, max, step, onChange, unit = "" }: {
   );
 }
 
+function progressLabel(p: SimProgress | null): string {
+  if (!p || p.stage === "solver") return "Solving…";
+  if (p.stage === "model") return "Loading the FNO…";
+  return `FNO step ${p.step} / ${p.total}…`;
+}
+
 /** Define a dam break, solve it with the reference solver, and roll the FNO out on it. */
 export function CustomPanel({ onRun }: Props) {
   const [p, setP] = useState<DamParams>(PRESETS[1].p);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
+  const [progress, setProgress] = useState<SimProgress | null>(null);
   const ood = oodReasons(p);
 
   const run = async () => {
     setBusy(true);
     setErr(null);
+    setProgress(null);
     try {
-      onRun(await api.simulate(p));
+      onRun(await api.simulate(p, undefined, setProgress));
     } catch (e) {
       setErr(e instanceof Error ? e.message : String(e));
     } finally {
       setBusy(false);
+      setProgress(null);
     }
   };
 
@@ -86,12 +95,18 @@ export function CustomPanel({ onRun }: Props) {
           )}
         </div>
         <button type="button" className="run-btn" onClick={run} disabled={busy}>
-          {busy ? "Solving…" : "Solve and run FNO"}
+          {busy ? progressLabel(progress) : "Solve and run FNO"}
         </button>
         {err && <p className="custom-err" role="alert">{err}</p>}
         <p className="custom-note">
           The reference comes from pdeView&apos;s finite-volume solver, which reproduces PyClaw&apos;s
           ground truth to 6e-8. The outer depth stays 1 and g = 1.
+          {STATIC && (
+            <>
+              {" "}Here both run in your browser: the solver as a JavaScript port and the FNO with onnxruntime-web.
+              A run takes a few seconds. The first one also downloads the model and runtime (about 8 MB).
+            </>
+          )}
         </p>
       </div>
     </details>

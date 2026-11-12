@@ -333,3 +333,31 @@ thead th { font-size: 12px; color: var(--text-muted); font-weight: 600; }
 td.neg { color: var(--critical); font-weight: 600; }
 .gen-figure { margin: 12px 0 0; }
 .gen-figure img { width: 100%; height: auto; display: block; border-radius: 6px; background: #fcfcfb; }
+
+/* ---- static build (GitHub Pages) ---- */
+.static-banner {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin: 0 0 14px;
+  padding: 10px 14px;
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--accent);
+  border-radius: var(--radius);
+  background: var(--accent-soft);
+  color: var(--text-primary);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.static-banner svg { flex: none; width: 16px; height: 16px; margin-top: 2px; fill: none; stroke: var(--accent); stroke-width: 1.5; stroke-linecap: round; }
+.static-banner p { margin: 0; }
+.static-banner a, .site-footer a { color: var(--accent); }
+.site-footer {
+  margin-top: 24px;
+  padding: 14px 2px 4px;
+  border-top: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.55;
+}
+.site-footer p { margin: 0 0 4px; }
