@@ -1,0 +1,131 @@
+# Builds the static site (docs/static-site.md) and deploys it to GitHub Pages.
+name: Pages
+
+on:
+  push:
+    branches: [pages]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One deployment at a time. A queued run waits; a running deployment is not cancelled.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      # The venv gets CPU-only torch, which differs from the PyPI torch pinned in uv.lock.
+      # Without this, every `uv run` would sync the CUDA build back in.
+      UV_NO_SYNC: "1"
+      PYTHONUNBUFFERED: "1"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Set up uv
+        # setup-uv publishes no floating major tags since v8, only immutable full versions.
+        uses: astral-sh/setup-uv@v10.3.3
+        with:
+          enable-cache: true
+
+      - name: Install Python dependencies (CPU-only torch)
+        run: |
+          # PyPI's Linux torch wheel pulls in the CUDA stack (several GB). Install the locked
+          # torch version from PyTorch's CPU index instead, and everything else (project,
+          # default groups, `static`) at the versions in uv.lock. `--prune torch` drops torch
+          # and the dependencies only it needs (nvidia-*, cuda-*, triton, ...).
+          uv venv
+          uv export --locked --group static --no-hashes --prune torch \
+            --output-file "$RUNNER_TEMP/requirements.txt"
+          torch=$(uv export --locked --no-hashes --no-emit-project | grep -oE '^torch==[^ ;]+')
+          uv pip install --torch-backend cpu "$torch" -r "$RUNNER_TEMP/requirements.txt"
+          uv run python -c 'import torch; print(torch.__version__); assert not torch.version.cuda'
+
+      - name: Restore data and checkpoint
+        id: data-cache
+        uses: actions/cache/restore@v6
+        with:
+          path: |
+            data
+            checkpoints
+          key: >-
+            pdeview-data-${{ runner.os }}-${{ hashFiles('backend/pdeview/config.py',
+            'backend/pdeview/data/remote.py', 'scripts/fetch_data.py') }}
+
+      - name: Fetch data and checkpoint
+        run: uv run python scripts/fetch_data.py
+
+      # Saved here rather than at job end: a failed export then costs no re-download, and the
+      # cache does not pick up data/heldout/, which the exporter writes and the key ignores.
+      - name: Save data and checkpoint
+        if: steps.data-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v6
+        with:
+          path: |
+            data
+            checkpoints
+          key: ${{ steps.data-cache.outputs.cache-primary-key }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          VITE_STATIC: "1"
+          VITE_BASE: /pdeView/
+        run: |
+          npm ci
+          npm run build
+
+      # Runs after the build because Vite empties dist/.
+      - name: Export static API
+        run: uv run --group static python scripts/export_static.py --out frontend/dist/static-api
+
+      - name: Check site size
+        working-directory: frontend/dist
+        run: |
+          du -sh -- * static-api/* | sort -h
+          for f in gt.bin pred.bin; do
+            find static-api/samples -name "$f" -printf '%s\n' |
+              awk -v f="$f" '{ s += $1 } END { printf "%-8s %4d files %8.1f MB\n", f, NR, s / 1e6 }'
+          done
+          total=$(du -sb . | cut -f1)
+          limit=950000000  # Pages allows 1 GB per site
+          echo "Site: $((total / 1000000)) MB (limit $((limit / 1000000)) MB)"
+          if [ "$total" -gt "$limit" ]; then
+            echo "::error::Site is $((total / 1000000)) MB, above the $((limit / 1000000)) MB limit"
+            exit 1
+          fi
+
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v5
+        with:
+          path: frontend/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v5
+        with:
+          # 10 minutes is both the default and the action's hard cap (MAX_TIMEOUT).
+          timeout: 600000
