@@ -2,18 +2,22 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
 import threading
+import time
 from collections import OrderedDict
 from concurrent.futures import Future
+from dataclasses import asdict
 
 import numpy as np
 import torch
 
 from pdeview.config import FNO_INITIAL_STEP, REPORTS_DIR
 from pdeview.data.store import SampleStore
+from pdeview.generalization import DamParams, reference
 from pdeview.inference import make_grid, persistence, rollout
 from pdeview.metrics import sample_stats
 from pdeview.model.checkpoint import load_fno
@@ -40,6 +44,46 @@ class ViewerService:
         self._cache_size = cache_size
         per_sample = (self.verification or {}).get("per_sample", [])
         self._sample_metrics = {p["key"]: p for p in per_sample}
+        self._custom: OrderedDict[str, dict] = OrderedDict()
+        self._custom_size = 8
+
+    # ------------------------------------------------------------------ data access
+    def has_key(self, key: str) -> bool:
+        with self._lock:
+            return key in self.store.samples or key in self._custom
+
+    def ground_truth(self, key: str) -> np.ndarray:
+        """Reference trajectory: PyClaw data for dataset samples, our solver for custom runs."""
+        if key in self.store.samples:
+            return self.store.frames(key)
+        with self._lock:
+            run = self._custom.get(key)
+        if run is None:
+            raise KeyError(key)
+        return run["frames"]
+
+    def simulate(self, params: DamParams) -> dict:
+        """Run the reference solver for a custom dam break (cached by parameters)."""
+        blob = json.dumps(asdict(params), sort_keys=True).encode()
+        key = "c-" + hashlib.sha1(blob).hexdigest()[:10]
+        with self._lock:
+            if key in self._custom:
+                self._custom.move_to_end(key)
+                return self._custom[key]["info"]
+        t0 = time.perf_counter()
+        frames = reference(params)
+        frames.setflags(write=False)
+        info = {"key": key, "params": asdict(params), "ood": params.ood_reasons(),
+                "solver_seconds": round(time.perf_counter() - t0, 3)}
+        with self._lock:
+            self._custom[key] = {"frames": frames, "info": info}
+            while len(self._custom) > self._custom_size:
+                old, _ = self._custom.popitem(last=False)
+                self._cache.pop(old, None)
+        t1 = time.perf_counter()
+        self.prediction(key)
+        info["rollout_seconds"] = round(time.perf_counter() - t1, 3)
+        return info
 
     # ------------------------------------------------------------------ rollouts
     def prediction(self, key: str) -> np.ndarray:
@@ -55,7 +99,7 @@ class ViewerService:
         if not owner:
             return fut.result()
         try:
-            gt = self.store.frames(key)
+            gt = self.ground_truth(key)
             pred = rollout(self.model, gt[:FNO_INITIAL_STEP], self.grid, gt.shape[0],
                            device=self.device)
             pred.setflags(write=False)
@@ -100,7 +144,7 @@ class ViewerService:
         return out
 
     def stats(self, key: str) -> dict:
-        gt = self.store.frames(key)
+        gt = self.ground_truth(key)
         pred = self.prediction(key)
         k0 = FNO_INITIAL_STEP
         s = sample_stats(pred[k0:], gt[k0:])

@@ -136,3 +136,40 @@ export interface Verification {
   device: Record<string, number | boolean | null>;
   environment: Record<string, string | number>;
 }
+
+export interface DamParams {
+  radius: number;
+  cx: number;
+  cy: number;
+  h_in: number;
+}
+
+/** A custom dam break solved by the backend's reference solver. */
+export interface CustomRun {
+  key: string;
+  params: DamParams & { h_out: number };
+  ood: string[];
+  solver_seconds: number;
+  rollout_seconds: number;
+}
+
+export interface GeneralizationCase {
+  params: { radius: number; cx: number; cy: number; h_in: number; second: [number, number, number] | null };
+  ood: string[];
+  nRMSE: number;
+  nRMSE_final: number;
+  persistence_nRMSE: number;
+  skill: number;
+  volume_drift_final: number;
+}
+
+export interface Generalization {
+  solver_validation: {
+    n_samples: number;
+    max_abs_error: number;
+    mean_nRMSE: number;
+    seconds_per_trajectory: number;
+  };
+  in_distribution_nRMSE: number;
+  families: Record<"radius" | "centre" | "height" | "two_dams", GeneralizationCase[]>;
+}

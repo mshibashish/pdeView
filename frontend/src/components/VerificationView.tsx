@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { fmtSci, metricLabel } from "../format";
-import type { MetricKey, Verification } from "../types";
+import type { Generalization, GeneralizationCase, MetricKey, Verification } from "../types";
 
 const METRICS: MetricKey[] = [
   "RMSE", "nRMSE", "cRMSE", "max_error", "bRMSE", "fRMSE_low", "fRMSE_mid", "fRMSE_high",
@@ -33,11 +33,15 @@ function StatusIcon({ ok, kind }: { ok: boolean; kind: "gate" | "finding" }) {
 export function VerificationView() {
   const [v, setV] = useState<Verification | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [gen, setGen] = useState<Generalization | null>(null);
 
   useEffect(() => {
     const ctrl = new AbortController();
     api.verification(ctrl.signal).then(setV).catch((e: unknown) => {
       if (!ctrl.signal.aborted) setErr(e instanceof Error ? e.message : String(e));
+    });
+    api.generalization(ctrl.signal).then(setGen).catch(() => {
+      /* optional report - the section is hidden if it has not been generated */
     });
     return () => ctrl.abort();
   }, []);
@@ -133,6 +137,8 @@ export function VerificationView() {
         </p>
       </section>
 
+      {gen && <GeneralizationSection gen={gen} />}
+
       <section className="panel">
         <h2>Metrics vs. the PDEBench paper (Table 5)</h2>
         <div className="table-wrap">
@@ -187,5 +193,77 @@ export function VerificationView() {
         <a href={REPO} target="_blank" rel="noreferrer">Full report on GitHub</a>.
       </p>
     </div>
+  );
+}
+
+function caseLabel(family: string, c: GeneralizationCase): string {
+  const p = c.params;
+  if (family === "radius") return `r = ${p.radius}`;
+  if (family === "centre") return `centre (${p.cx}, ${p.cy})`;
+  if (family === "height") return `h_in = ${p.h_in}`;
+  return p.second ? `two dams, r = ${p.radius}` : "";
+}
+
+function GeneralizationSection({ gen }: { gen: Generalization }) {
+  const sv = gen.solver_validation;
+  const pick: [keyof Generalization["families"], number[]][] = [
+    ["radius", [0.1, 0.5, 0.8, 1.0, 1.2]],
+    ["centre", [0.1, 0.5, 1.0]],
+    ["height", [1.5, 2.5, 3.0]],
+    ["two_dams", [0.4]],
+  ];
+  const rows = pick.flatMap(([fam, vals]) =>
+    gen.families[fam]
+      .filter((c) => {
+        const v = fam === "radius" || fam === "two_dams" ? c.params.radius : fam === "centre" ? c.params.cx : c.params.h_in;
+        return vals.includes(v) && (fam !== "centre" || c.params.cy === 0);
+      })
+      .map((c) => ({ fam, c })),
+  );
+  return (
+    <section className="panel">
+      <h2>Generalisation to unseen dam breaks</h2>
+      <p>
+        Because the PDEBench test split repeats the training split, we generated new trajectories with pdeView&apos;s own
+        solver. Re-simulating all {sv.n_samples} downloaded samples from their configs, it reproduces PyClaw to a maximum
+        |Δh| of {sv.max_abs_error.toExponential(1)}. The FNO is accurate only inside the training distribution. Moving the
+        dam off-centre or changing its depth quickly drives the error towards the persistence baseline, and at the
+        extremes the error exceeds it. Try it in <em>Viewer → Custom dam break</em>.
+      </p>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th scope="col">Initial condition</th>
+              <th scope="col">FNO nRMSE</th>
+              <th scope="col">× in-distribution</th>
+              <th scope="col">Persistence nRMSE</th>
+              <th scope="col">Skill</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(({ fam, c }) => (
+              <tr key={`${fam}-${caseLabel(fam, c)}`}>
+                <th scope="row">
+                  {caseLabel(fam, c)}
+                  {c.ood.length === 0 && <span className="tag test" style={{ marginLeft: 8 }}>in-dist.</span>}
+                </th>
+                <td>{fmtSci(c.nRMSE)}</td>
+                <td>{(c.nRMSE / gen.in_distribution_nRMSE).toFixed(1)}×</td>
+                <td>{fmtSci(c.persistence_nRMSE)}</td>
+                <td className={c.skill < 0 ? "neg" : undefined}>{c.skill.toFixed(2)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="note">
+        Skill = 1 − nRMSE<sub>FNO</sub> / nRMSE<sub>persistence</sub>. At 0 the FNO is no better than holding the last
+        input frame; below 0 it is worse.
+      </p>
+      <figure className="gen-figure">
+        <img src={api.figureUrl("generalization_families.png")} alt="FNO error vs. radius, dam position and inner depth" loading="lazy" />
+      </figure>
+    </section>
   );
 }

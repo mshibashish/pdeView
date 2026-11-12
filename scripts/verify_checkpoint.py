@@ -256,8 +256,9 @@ def write_markdown(rep: dict, figs: dict[str, str]) -> None:
         " trajectories, not generalisation; (ii) the train-probe vs. test comparison is"
         f" uninformative (ratio {acc['train_over_test_nRMSE']:.2f}); (iii) PDEBench selects"
         " the saved checkpoint on this same test split. Genuine generalisation can only be"
-        " probed with *new* simulations (e.g. off-centre dams or radii outside the training"
-        " range), which requires an independent solver.",
+        " probed with *new* simulations - see [GENERALIZATION.md](GENERALIZATION.md), where an"
+        " independent solver that reproduces PyClaw to 6e-8 shows the FNO is accurate only"
+        " inside the training distribution.",
         "",
         "## Finding 2: stored validation loss",
         "",

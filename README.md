@@ -16,7 +16,10 @@ and ground truth side by side:
 - **3D water surface** (three.js) for either ground truth or FNO.
 - **Diagnostic charts**: a cross-section that follows the hovered row, nRMSE over time against a persistence
   baseline (click to seek), and the change in water volume.
-- **Model verification tab** showing the full checkpoint audit described below.
+- **Custom dam breaks**: set the radius, centre and depth. pdeView's own finite-volume solver (which reproduces
+  PyClaw's ground truth to 6e-8) computes the reference, and the FNO is rolled out on it live. This shows where
+  the model stops generalising.
+- **Model verification tab** showing the full checkpoint audit and the generalisation study described below.
 
 ## The checkpoint was verified before use
 
@@ -42,6 +45,30 @@ anyone using this checkpoint or benchmark should know:
    2.17× the stored value. Training horizon, grid convention and split are ruled out. The checkpoint (June 2022)
    predates the data release (July 2022), so it was probably trained on an earlier revision of the data.
 
+### Does it generalise? Only inside the training distribution
+
+The test split can't answer this, so `backend/pdeview/solver/swe.py` re-implements PDEBench's PyClaw setup in
+NumPy: wave propagation, the Roe solver with Harten–Hyman entropy fix, the MC limiter, dimensional splitting and
+PyClaw's CFL control. It **reproduces all 110 downloaded samples to max |Δh| = 6e-8**, the precision of the stored
+float32 data. `scripts/generalization_study.py` then rolls the FNO out on new dam breaks
+([`reports/GENERALIZATION.md`](reports/GENERALIZATION.md)):
+
+| Initial condition | FNO nRMSE | vs. in-distribution (4.4e-3) | Persistence |
+|---|---|---|---|
+| r = 0.3–0.7, centred (training range) | 4.3e-3 – 6.5e-3 | 1.0–1.5× | 0.11–0.20 |
+| r = 0.8 / 1.0 / 1.2 | 2.5e-2 / 0.18 / **0.47** | 6× / 40× / 106× | ~0.21 |
+| dam moved off-centre by 0.1 / 0.5 / 1.0 | 2.7e-2 / 9.4e-2 / 0.13 | 6× / 21× / 29× | 0.17 |
+| inner depth 1.5 / 2.5 / 3.0 (training: 2) | 3.9e-2 / 0.13 / **0.55** | 9× / 29× / 125× | 0.08–0.32 |
+| two dams | 0.12–0.15 | 27–33× | 0.17–0.19 |
+
+The FNO takes absolute coordinates as input, and every training dam was centred. For an off-centre dam it
+**predicts a phantom collapse at the origin**: at (0, 0.1), t = 0.28 it gives h = 0.50 where the reference is a
+flat h = 1.00. At r = 1.2 and h_in = 3 it is worse than predicting no change at all. Within its narrow training
+distribution it is an accurate, fast emulator (0.3 s per rollout on Apple MPS). Outside it, the model is not
+trustworthy.
+
+![Off-centre dam in the viewer](docs/custom_dam.jpg)
+
 ## Quick start
 
 Requirements: [uv](https://docs.astral.sh/uv/) and Node 20+.
@@ -50,6 +77,7 @@ Requirements: [uv](https://docs.astral.sh/uv/) and Node 20+.
 uv sync                                    # Python 3.12 environment
 uv run python scripts/fetch_data.py        # checkpoint (11 MB, MD5-checked) + 110 samples (~730 MB, ~2 min)
 uv run python scripts/verify_checkpoint.py # optional: re-run the verification (~2.5 min on CPU)
+uv run python scripts/generalization_study.py  # optional: solver validation + generalisation (~2 min)
 
 # development: API on :8000, Vite dev server on :5173 (proxies /api)
 uv run uvicorn pdeview.api.app:app --port 8000
@@ -60,7 +88,8 @@ cd frontend && npm run build && cd ..
 uv run pdeview-serve                       # http://localhost:7860
 ```
 
-Or with Docker (CPU-only PyTorch; assets are downloaded on first start into named volumes):
+Or with Docker (CPU-only PyTorch; assets are downloaded on first start into named volumes). The image also runs
+as a Hugging Face Docker Space via `scripts/deploy_hf_space.py`, which needs a paid HF plan.
 
 ```bash
 docker compose up --build                  # http://localhost:8000
@@ -102,6 +131,8 @@ be resumed.
 | `backend/pdeview/data/remote.py` | Resumable partial download with Range requests |
 | `backend/pdeview/data/audit.py` | Finds duplicated trajectories across all 1000 samples |
 | `backend/pdeview/verification.py` | Verification checks (gates and findings) |
+| `backend/pdeview/solver/swe.py` | NumPy finite-volume SWE solver equivalent to PDEBench's PyClaw setup |
+| `backend/pdeview/generalization.py` | FNO evaluation on unseen initial conditions |
 | `backend/pdeview/service.py`, `api/app.py` | Rollout cache and HTTP API |
 | `frontend/src` | Viewer UI |
 | `reports/` | Generated verification report, dataset audit and figures |
@@ -114,12 +145,13 @@ be resumed.
 | `GET /api/samples` | Samples with dam radius, FNO error and duplicate count |
 | `GET /api/samples/{id}/field?kind=gt\|pred` | `float32[101,128,128]`, little-endian, `X-Shape` header |
 | `GET /api/samples/{id}/stats` | Per-frame RMSE, nRMSE and max error, persistence nRMSE, water volume |
-| `GET /api/verification` | Full verification report (JSON) |
+| `POST /api/simulate` | `{radius, cx, cy, h_in}` → runs the solver and the FNO; returns a key usable with the two endpoints above |
+| `GET /api/verification`, `GET /api/generalization` | Full reports (JSON) |
 
 ## Tests
 
 ```bash
-uv run pytest            # model, metrics (closed-form cases), data checks, API
+uv run pytest            # model, metrics (closed-form cases), solver, data checks, API
 uv run ruff check .
 cd frontend && npm run build   # type-check + bundle
 ```

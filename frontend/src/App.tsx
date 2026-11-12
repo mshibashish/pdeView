@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api, at, frame as frameOf } from "./api";
 import { lut, type Theme } from "./colormap";
 import { Colorbar } from "./components/Colorbar";
+import { CustomPanel } from "./components/CustomPanel";
 import { FieldPanel, type Hover } from "./components/FieldPanel";
 import { LineChart } from "./components/LineChart";
 import { SampleList } from "./components/SampleList";
@@ -12,7 +13,7 @@ import { fmtNum, fmtSci, fmtSigned } from "./format";
 import { usePlayback } from "./hooks/usePlayback";
 import { useSample } from "./hooks/useSample";
 import { useTheme } from "./hooks/useTheme";
-import type { Meta, SampleData, SampleSummary } from "./types";
+import type { CustomRun, Meta, SampleData, SampleSummary } from "./types";
 
 type Tab = "viewer" | "verification" | "about";
 
@@ -36,6 +37,11 @@ export default function App() {
   const [samples, setSamples] = useState<SampleSummary[]>([]);
   const [selected, setSelected] = useState<string | null>(initial.sample);
   const [bootError, setBootError] = useState<string | null>(null);
+  const [customRuns, setCustomRuns] = useState<Record<string, CustomRun>>({});
+  const onCustomRun = (run: CustomRun) => {
+    setCustomRuns((c) => ({ ...c, [run.key]: run }));
+    setSelected(run.key);
+  };
 
   useEffect(() => {
     const ctrl = new AbortController();
@@ -104,8 +110,12 @@ export default function App() {
 
       {tab === "viewer" && meta && (
         <div className="viewer-layout">
-          <SampleList samples={samples} selected={selected} onSelect={setSelected} />
-          <Viewer meta={meta} sampleKey={selected} summary={samples.find((s) => s.key === selected)} theme={theme} />
+          <div className="sidebar">
+            <CustomPanel onRun={onCustomRun} />
+            <SampleList samples={samples} selected={selected} onSelect={setSelected} />
+          </div>
+          <Viewer meta={meta} sampleKey={selected} summary={samples.find((s) => s.key === selected)}
+            custom={selected ? customRuns[selected] : undefined} theme={theme} />
         </div>
       )}
       {tab === "verification" && <VerificationView />}
@@ -114,8 +124,8 @@ export default function App() {
   );
 }
 
-function Viewer({ meta, sampleKey, summary, theme }: {
-  meta: Meta; sampleKey: string | null; summary?: SampleSummary; theme: Theme;
+function Viewer({ meta, sampleKey, summary, custom, theme }: {
+  meta: Meta; sampleKey: string | null; summary?: SampleSummary; custom?: CustomRun; theme: Theme;
 }) {
   const { data, loading, error } = useSample(sampleKey);
   const [nt, nx, ny] = meta.shape;
@@ -146,7 +156,7 @@ function Viewer({ meta, sampleKey, summary, theme }: {
 
   return (
     <ViewerBody
-      meta={meta} data={data} summary={summary} theme={theme} loading={loading}
+      meta={meta} data={data} summary={summary} custom={custom} theme={theme} loading={loading}
       pb={pb} hover={hover} setHover={setHover} mode={mode} setMode={setMode}
       surfaceSource={surfaceSource} setSurfaceSource={setSurfaceSource}
       errScale={errScale} setErrScale={setErrScale} nx={nx} ny={ny}
@@ -158,6 +168,7 @@ interface BodyProps {
   meta: Meta;
   data: SampleData;
   summary?: SampleSummary;
+  custom?: CustomRun;
   theme: Theme;
   loading: boolean;
   pb: ReturnType<typeof usePlayback>;
@@ -174,7 +185,7 @@ interface BodyProps {
 }
 
 function ViewerBody({
-  meta, data, summary, theme, loading, pb, hover, setHover, mode, setMode,
+  meta, data, summary, custom, theme, loading, pb, hover, setHover, mode, setMode,
   surfaceSource, setSurfaceSource, errScale, setErrScale, nx, ny,
 }: BodyProps) {
   const { gt, pred, stats } = data;
@@ -222,10 +233,26 @@ function ViewerBody({
 
   const isInput = f < k0;
   const twins = summary?.n_twins_total ?? 0;
+  const refLabel = custom ? "Reference" : "Ground truth";
 
   return (
     <section className={`viewer ${loading ? "refreshing" : ""}`} aria-label={`Sample ${data.key}`}>
       <div className="sample-header">
+        {custom ? (
+          <div>
+            <h2>
+              Custom dam break
+              <span className="tag">reference solver</span>
+            </h2>
+            <p>
+              r = {fmtNum(custom.params.radius, 2)} · centre ({fmtNum(custom.params.cx, 2)}, {fmtNum(custom.params.cy, 2)}) ·
+              h = {fmtNum(custom.params.h_in, 2)} inside, 1 outside · solved in {custom.solver_seconds.toFixed(2)} s
+            </p>
+            <p className={`ood-line ${custom.ood.length ? "out" : "in"}`}>
+              {custom.ood.length ? `Outside the training distribution: ${custom.ood.join("; ")}` : "Inside the training distribution"}
+            </p>
+          </div>
+        ) : (
         <div>
           <h2>
             Sample {data.key}
@@ -239,6 +266,7 @@ function ViewerBody({
             )}
           </p>
         </div>
+        )}
         <dl className="stats">
           <div><dt>FNO nRMSE</dt><dd>{fmtSci(stats.summary.nRMSE)}</dd></div>
           <div><dt>Persistence nRMSE</dt><dd>{fmtSci(stats.summary.persistence_nRMSE)}</dd></div>
@@ -267,12 +295,13 @@ function ViewerBody({
 
       {mode === "2d" ? (
         <div className="fields">
-          <FieldPanel title="Ground truth" subtitle="PyClaw finite volume" nx={nx} ny={ny} values={gtFrame}
+          <FieldPanel title={custom ? "Reference solver" : "Ground truth"}
+            subtitle={custom ? "pdeView FV (PyClaw scheme)" : "PyClaw finite volume"} nx={nx} ny={ny} values={gtFrame}
             lo={lo} hi={hi} table={hLut} hover={hover} onHover={setHover} version={`${version}-${theme}`} />
           <FieldPanel title="FNO prediction" subtitle={isInput ? "input frame = ground truth" : `${f - k0 + 1} autoregressive steps`}
             badge={isInput ? "input" : undefined} nx={nx} ny={ny} values={prFrame}
             lo={lo} hi={hi} table={hLut} hover={hover} onHover={setHover} version={`${version}-${theme}`} />
-          <FieldPanel title="Error" subtitle="FNO − ground truth" nx={nx} ny={ny} values={errAt}
+          <FieldPanel title="Error" subtitle={`FNO − ${refLabel.toLowerCase()}`} nx={nx} ny={ny} values={errAt}
             lo={-eMax} hi={eMax} table={eLut} hover={hover} onHover={setHover} version={`${version}-${theme}-${eMax}`} />
         </div>
       ) : (
@@ -287,14 +316,14 @@ function ViewerBody({
         <Colorbar kind="height" theme={theme} lo={lo} hi={hi} label={`Water height h (${perFrame ? "this frame" : "whole rollout"})`} />
         {mode === "2d" && (
           <Colorbar kind="error" theme={theme} lo={-eMax} hi={eMax}
-            label={perFrame && isInput ? "Error (input frames are exact)" : `Error FNO − GT (${perFrame ? "this frame" : "whole rollout"})`}
+            label={perFrame && isInput ? "Error (input frames are exact)" : `Error FNO − ${custom ? "ref" : "GT"} (${perFrame ? "this frame" : "whole rollout"})`}
             format={(v) => (Math.abs(v) < 1e-5 ? "0" : fmtSigned(v, 3))} />
         )}
         <div className="readout" aria-live="polite">
           {hover ? (
             <>
               <span>x = {fmtNum(x[hover.ix], 3)}, y = {fmtNum(y[hover.iy], 3)}</span>
-              <span><i style={{ background: colors.gt }} />GT <strong>{fmtNum(at(gt, f, hover.ix, hover.iy), 4)}</strong></span>
+              <span><i style={{ background: colors.gt }} />{custom ? "Ref" : "GT"} <strong>{fmtNum(at(gt, f, hover.ix, hover.iy), 4)}</strong></span>
               <span><i style={{ background: colors.fno }} />FNO <strong>{fmtNum(at(pred, f, hover.ix, hover.iy), 4)}</strong></span>
               <span>error <strong>{fmtSigned(at(pred, f, hover.ix, hover.iy) - at(gt, f, hover.ix, hover.iy), 4)}</strong></span>
             </>
@@ -312,7 +341,7 @@ function ViewerBody({
           title={`Cross-section at y = ${fmtNum(y[iyCut], 2)}, t = ${t[f].toFixed(2)}`}
           x={x}
           series={[
-            { id: "gt", label: "Ground truth", color: colors.gt, values: cross.gt },
+            { id: "gt", label: refLabel, color: colors.gt, values: cross.gt },
             { id: "fno", label: "FNO", color: colors.fno, values: cross.pred, dash: "5 3" },
           ]}
           xLabel="x"
@@ -346,7 +375,7 @@ function ViewerBody({
           title="Water volume change vs. t = 0"
           x={t}
           series={[
-            { id: "gt", label: "Ground truth", color: colors.gt, values: volGt },
+            { id: "gt", label: refLabel, color: colors.gt, values: volGt },
             { id: "fno", label: "FNO", color: colors.fno, values: volPr, dash: "5 3" },
           ]}
           xLabel="t"
@@ -387,6 +416,11 @@ function About({ meta }: { meta: Meta | null }) {
         checked its integrity, reproduced the paper&apos;s metrics, compared it with a persistence baseline and audited
         the dataset. The audit showed that PDEBench&apos;s SWE test split repeats training trajectories, which bounds
         what its test accuracy can tell us.
+      </p>
+      <p>
+        To test generalisation, pdeView includes its own finite-volume solver. It uses PDEBench&apos;s PyClaw scheme and
+        reproduces every downloaded sample to 6e-8. Use <em>Custom dam break</em> in the viewer to move, resize or
+        deepen the dam and see how the FNO responds.
       </p>
       <p className="note">
         Data and checkpoint: PDEBench (Takamoto et al., NeurIPS 2022), DaRUS doi:10.18419/darus-2986 and

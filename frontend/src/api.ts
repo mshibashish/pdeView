@@ -1,4 +1,7 @@
-import type { Field, Meta, SampleData, SampleStats, SampleSummary, Verification } from "./types";
+import type {
+  CustomRun, DamParams, Field, Generalization, Meta, SampleData, SampleStats, SampleSummary,
+  Verification,
+} from "./types";
 
 const BASE = "/api";
 
@@ -27,6 +30,17 @@ export const api = {
   meta: (signal?: AbortSignal) => json<Meta>("/meta", signal),
   samples: (signal?: AbortSignal) => json<SampleSummary[]>("/samples", signal),
   verification: (signal?: AbortSignal) => json<Verification>("/verification", signal),
+  generalization: (signal?: AbortSignal) => json<Generalization>("/generalization", signal),
+  async simulate(p: DamParams, signal?: AbortSignal): Promise<CustomRun> {
+    const res = await fetch(`${BASE}/simulate`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(p),
+      signal,
+    });
+    if (!res.ok) throw new Error(`simulate: HTTP ${res.status}`);
+    return (await res.json()) as CustomRun;
+  },
   figureUrl: (name: string) => `${BASE}/report/figures/${encodeURIComponent(name)}`,
   async sample(key: string, signal?: AbortSignal): Promise<SampleData> {
     // The prediction may need to be computed server-side (~1 s); fetch all three in parallel.

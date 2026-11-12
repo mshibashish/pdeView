@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import threading
 from contextlib import asynccontextmanager
@@ -11,8 +12,10 @@ from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 
 from pdeview.config import FRONTEND_DIST, REPORTS_DIR
+from pdeview.generalization import DamParams
 from pdeview.service import ViewerService
 
 log = logging.getLogger("pdeview")
@@ -39,8 +42,25 @@ def _svc(request: Request) -> ViewerService:
 
 
 def _check_key(svc: ViewerService, key: str) -> None:
-    if key not in svc.store.samples:
+    if not svc.has_key(key):
         raise HTTPException(404, f"unknown sample {key!r}")
+
+
+class SimulateRequest(BaseModel):
+    """A custom radial dam break (the outer depth stays 1, as in the training data)."""
+
+    radius: float = Field(0.5, ge=0.05, le=1.5)
+    cx: float = Field(0.0, ge=-2.0, le=2.0)
+    cy: float = Field(0.0, ge=-2.0, le=2.0)
+    h_in: float = Field(2.0, ge=1.05, le=3.0)
+
+
+@app.post("/api/simulate")
+def simulate(req: SimulateRequest, request: Request) -> dict:
+    """Solve a custom dam break with the reference solver and roll the FNO out on it."""
+    p = DamParams(radius=round(req.radius, 4), cx=round(req.cx, 4), cy=round(req.cy, 4),
+                  h_in=round(req.h_in, 4))
+    return _svc(request).simulate(p)
 
 
 @app.get("/api/health")
@@ -73,7 +93,7 @@ def sample_field(
     """Raw little-endian float32 array of shape ``[T, X, Y]`` (row-major)."""
     svc = _svc(request)
     _check_key(svc, key)
-    arr = svc.store.frames(key) if kind == "gt" else svc.prediction(key)
+    arr = svc.ground_truth(key) if kind == "gt" else svc.prediction(key)
     body = np.ascontiguousarray(arr, dtype="<f4").tobytes()
     return Response(
         content=body,
@@ -93,6 +113,14 @@ def verification(request: Request) -> JSONResponse:
     if v is None:
         raise HTTPException(404, "run scripts/verify_checkpoint.py first")
     return JSONResponse(v)
+
+
+@app.get("/api/generalization")
+def generalization() -> JSONResponse:
+    path = REPORTS_DIR / "generalization.json"
+    if not path.exists():
+        raise HTTPException(404, "run scripts/generalization_study.py first")
+    return JSONResponse(json.loads(path.read_text()))
 
 
 @app.get("/api/report/figures/{name}")

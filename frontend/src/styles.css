@@ -128,11 +128,42 @@ h2 { font-size: 16px; font-weight: 600; }
 .viewer-layout { display: grid; grid-template-columns: 290px minmax(0, 1fr); gap: 16px; align-items: start; }
 
 /* sample list */
-.sample-list {
-  background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius);
-  box-shadow: var(--shadow); position: sticky; top: 12px; display: flex; flex-direction: column;
+.sidebar {
+  position: sticky; top: 12px; display: grid; gap: 12px; grid-template-rows: auto minmax(0, 1fr);
   max-height: calc(100vh - 24px);
 }
+.sample-list {
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow); display: flex; flex-direction: column; min-height: 0;
+}
+.custom-panel {
+  background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow);
+}
+.custom-panel summary { cursor: pointer; padding: 10px 14px; display: grid; list-style: none; }
+.custom-panel summary::-webkit-details-marker { display: none; }
+.custom-panel summary > span:first-child { font-weight: 600; }
+.custom-panel summary > span:first-child::before { content: "▸ "; color: var(--text-muted); }
+.custom-panel[open] summary > span:first-child::before { content: "▾ "; }
+.custom-sub { font-size: 12px; color: var(--text-muted); }
+.custom-body { padding: 0 14px 12px; display: grid; gap: 10px; }
+.presets { display: flex; flex-wrap: wrap; gap: 6px; }
+.presets button { border: 1px solid var(--border); background: var(--surface-2); border-radius: 999px; padding: 3px 10px; font-size: 12px; cursor: pointer; }
+.presets button:hover { border-color: var(--accent); }
+.slider { display: grid; gap: 2px; font-size: 12.5px; color: var(--text-secondary); }
+.slider-head { display: flex; justify-content: space-between; }
+.slider-head strong { color: var(--text-primary); font-variant-numeric: tabular-nums; }
+.slider input { width: 100%; accent-color: var(--accent); margin: 0; }
+.ood { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); }
+.ood svg { width: 16px; height: 16px; flex: none; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; margin-top: 1px; }
+.ood.out svg { stroke: var(--warning); }
+.ood.in svg { stroke: var(--good); }
+.run-btn { border: 0; border-radius: 8px; padding: 8px 12px; background: var(--accent); color: var(--accent-ink); font-weight: 600; cursor: pointer; }
+.run-btn:disabled { opacity: 0.6; cursor: progress; }
+.custom-err { color: var(--critical); margin: 0; font-size: 12.5px; }
+.custom-note { margin: 0; font-size: 11.5px; color: var(--text-muted); }
+.ood-line { font-size: 13px; }
+.ood-line.out::before { content: "⚠ "; color: var(--warning); }
+.ood-line.in::before { content: "✓ "; color: var(--good); }
 .sample-filters { padding: 12px; display: grid; gap: 10px; border-bottom: 1px solid var(--border); }
 .segmented { display: inline-flex; align-items: center; gap: 2px; background: var(--surface-2); padding: 3px; border-radius: 8px; flex-wrap: wrap; }
 .segmented button { border: 0; background: none; padding: 5px 10px; border-radius: 6px; cursor: pointer; color: var(--text-secondary); font-size: 13px; }
@@ -281,7 +312,8 @@ thead th { font-size: 12px; color: var(--text-muted); font-weight: 600; }
 }
 @media (max-width: 920px) {
   .viewer-layout { grid-template-columns: 1fr; }
-  .sample-list { position: static; max-height: 320px; }
+  .sidebar { position: static; max-height: none; }
+  .sample-list { max-height: 320px; }
   .fields { grid-template-columns: 1fr; }
   .charts { grid-template-columns: 1fr; }
   .figures { grid-template-columns: 1fr; }
@@ -297,3 +329,7 @@ thead th { font-size: 12px; color: var(--text-muted); font-weight: 600; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
+
+td.neg { color: var(--critical); font-weight: 600; }
+.gen-figure { margin: 12px 0 0; }
+.gen-figure img { width: 100%; height: auto; display: block; border-radius: 6px; background: #fcfcfb; }
