@@ -38,8 +38,11 @@ def test_ood_reasons():
     assert DamParams().ood_reasons() == []
     reasons = DamParams(radius=1.0, cx=0.5, h_in=3.0).ood_reasons()
     assert len(reasons) == 3
+    x = cell_centres()
     two = initial_condition(DamParams(radius=0.3, cx=-1, second=(1.0, 0.0, 0.3)))
-    assert (two == 2).sum() == 2 * (dam_break_ic(cell_centres(), cell_centres(), 0.3) == 2).sum()
+    left = dam_break_ic(x, x, 0.3, (-1.0, 0.0)) == 2
+    right = dam_break_ic(x, x, 0.3, (1.0, 0.0)) == 2
+    np.testing.assert_array_equal(two == 2, left | right)
 
 
 @needs_data
