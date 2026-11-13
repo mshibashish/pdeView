@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { fmtSci } from "../format";
+import { useHotkeys } from "../hooks/useHotkeys";
 import type { SampleSummary } from "../types";
 
 type SplitFilter = "all" | "test" | "heldout" | "train";
@@ -31,6 +32,37 @@ export function SampleList({ samples, selected, onSelect }: Props) {
   }, [samples, split, sort]);
 
   const maxErr = Math.max(...rows.map((s) => s.nRMSE ?? 0), 1e-9); // bars scale to the visible rows
+  const listRef = useRef<HTMLUListElement>(null);
+  const selectedIdx = rows.findIndex((s) => s.key === selected);
+  const tabStop = Math.max(0, selectedIdx); // one tab stop for the whole list; arrows move within it
+
+  // J / K: next / previous sample in the visible order
+  const go = (d: number) => {
+    const next = rows[selectedIdx < 0 ? 0 : Math.min(rows.length - 1, Math.max(0, selectedIdx + d))];
+    if (next) onSelect(next.key);
+  };
+  useHotkeys({ j: () => go(1), k: () => go(-1) });
+
+  // Keep the selected row in view by scrolling the list only (never the page).
+  useEffect(() => {
+    const ul = listRef.current;
+    const row = ul?.children[selectedIdx] as HTMLElement | undefined;
+    if (!ul || !row) return;
+    if (row.offsetTop < ul.scrollTop) ul.scrollTop = row.offsetTop;
+    else if (row.offsetTop + row.offsetHeight > ul.scrollTop + ul.clientHeight) {
+      ul.scrollTop = row.offsetTop + row.offsetHeight - ul.clientHeight;
+    }
+  }, [selectedIdx]);
+
+  // Up / Down / Home / End move focus between rows; Enter or Space opens the focused sample.
+  const onListKey = (e: React.KeyboardEvent<HTMLUListElement>) => {
+    const buttons = [...e.currentTarget.querySelectorAll<HTMLButtonElement>("button.sample-row")];
+    const i = buttons.indexOf(document.activeElement as HTMLButtonElement);
+    const to = { ArrowDown: i + 1, ArrowUp: i - 1, Home: 0, End: buttons.length - 1 }[e.key];
+    if (i < 0 || to === undefined || e.altKey || e.ctrlKey || e.metaKey) return;
+    e.preventDefault();
+    buttons[Math.min(buttons.length - 1, Math.max(0, to))]?.focus();
+  };
 
   return (
     <aside className="sample-list" aria-label="Samples">
@@ -57,11 +89,12 @@ export function SampleList({ samples, selected, onSelect }: Props) {
         <span>r</span>
         <span>FNO nRMSE</span>
       </div>
-      <ul className="sample-rows">
-        {rows.map((s) => (
+      <ul className="sample-rows" ref={listRef} onKeyDown={onListKey}>
+        {rows.map((s, i) => (
           <li key={s.key}>
             <button
               type="button"
+              tabIndex={i === tabStop ? 0 : -1}
               className={`sample-row ${s.key === selected ? "selected" : ""}`}
               onClick={() => onSelect(s.key)}
               aria-current={s.key === selected}

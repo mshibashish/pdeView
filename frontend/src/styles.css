@@ -217,7 +217,7 @@ h2 { font-size: 16px; font-weight: 600; }
 select { background: var(--surface-1); border: 1px solid var(--border); border-radius: 6px; padding: 4px 6px; }
 .sample-head, .sample-row { display: grid; grid-template-columns: 84px 52px 1fr; gap: 8px; align-items: center; }
 .sample-head { padding: 8px 14px 6px; font-size: 11.5px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.04em; }
-.sample-rows { list-style: none; margin: 0; padding: 0 6px 6px; overflow-y: auto; }
+.sample-rows { position: relative; list-style: none; margin: 0; padding: 0 6px 6px; overflow-y: auto; }
 .sample-row {
   width: 100%; text-align: left; border: 0; background: none; padding: 6px 8px; border-radius: 6px; cursor: pointer;
   font-variant-numeric: tabular-nums;
@@ -358,6 +358,32 @@ thead th { font-size: 12px; color: var(--text-muted); font-weight: 600; }
 .about { max-width: 900px; }
 .about p { color: var(--text-secondary); }
 
+/* ---------------------------------------------------------------- shortcuts dialog */
+dialog.shortcuts {
+  width: min(640px, calc(100vw - 32px)); max-height: calc(100vh - 48px); padding: 0;
+  border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface-1);
+  color: var(--text-primary); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.25);
+}
+dialog.shortcuts::backdrop { background: rgba(11, 11, 11, 0.4); }
+.shortcuts-body { padding: 16px 20px 20px; }
+.shortcuts-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.shortcuts-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px 28px; }
+.shortcuts h3 {
+  margin: 10px 0 6px; font-size: 11.5px; font-weight: 600; color: var(--text-muted);
+  text-transform: uppercase; letter-spacing: 0.04em;
+}
+dialog.shortcuts:focus { outline: none; } /* focus lands on the dialog itself after a click on its text */
+.shortcuts dl { margin: 0; display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 7px 14px; align-items: baseline; }
+.shortcuts dl > div { display: contents; }
+.shortcuts dt { white-space: nowrap; }
+.shortcuts dd { margin: 0; font-size: 13px; color: var(--text-secondary); }
+kbd {
+  display: inline-block; min-width: 20px; padding: 1px 5px; text-align: center;
+  font: 11.5px/1.5 var(--mono); color: var(--text-primary); background: var(--surface-2);
+  border: 1px solid var(--border); border-bottom-width: 2px; border-radius: 5px;
+}
+.kbd-sep { margin: 0 3px; font-size: 11px; color: var(--text-muted); }
+
 /* ---------------------------------------------------------------- responsive */
 @media (max-width: 1180px) {
   .charts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -399,6 +425,7 @@ thead th { font-size: 12px; color: var(--text-muted); font-weight: 600; }
   .pill-more { display: none; }
   .time-controls { padding: 8px 10px; gap: 6px 10px; }
   .time-readout { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; }
+  .shortcuts-groups { grid-template-columns: 1fr; }
 }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }

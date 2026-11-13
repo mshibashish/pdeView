@@ -6,11 +6,13 @@ import { CustomPanel } from "./components/CustomPanel";
 import { FieldPanel, type Hover } from "./components/FieldPanel";
 import { LineChart } from "./components/LineChart";
 import { SampleList } from "./components/SampleList";
+import { ShortcutsDialog } from "./components/ShortcutsDialog";
 import { preloadSurface3D, Surface3D } from "./components/LazySurface3D";
-import { TimeControls } from "./components/TimeControls";
+import { SPEEDS, TimeControls } from "./components/TimeControls";
 import { VerificationView } from "./components/VerificationView";
 import { fmtNum, fmtSci, fmtSigned } from "./format";
 import { usePlayback } from "./hooks/usePlayback";
+import { useHotkeys } from "./hooks/useHotkeys";
 import { useSample } from "./hooks/useSample";
 import { useTheme } from "./hooks/useTheme";
 import type { CustomRun, Meta, SampleData, SampleSummary } from "./types";
@@ -38,6 +40,8 @@ export default function App() {
   const [selected, setSelected] = useState<string | null>(initial.sample);
   const [bootError, setBootError] = useState<string | null>(null);
   const [customRuns, setCustomRuns] = useState<Record<string, CustomRun>>({});
+  const [helpOpen, setHelpOpen] = useState(false);
+  useHotkeys({ "?": () => setHelpOpen(true) });
   const onCustomRun = (run: CustomRun) => {
     setCustomRuns((c) => ({ ...c, [run.key]: run }));
     setSelected(run.key);
@@ -93,6 +97,13 @@ export default function App() {
             </button>
           ))}
         </nav>
+        <button type="button" className="icon-btn" onClick={() => setHelpOpen(true)} aria-label="Keyboard shortcuts"
+          aria-keyshortcuts="?" aria-haspopup="dialog" title="Keyboard shortcuts (?)">
+          <svg viewBox="0 0 16 16" aria-hidden>
+            <rect x="1.5" y="3.5" width="13" height="9" rx="1.5" />
+            <path d="M4 6.5h.01M6.67 6.5h.01M9.33 6.5h.01M12 6.5h.01M4.5 9.5h7" />
+          </svg>
+        </button>
         <button type="button" className="icon-btn theme" onClick={toggleTheme} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`} title="Toggle theme">
           {theme === "dark" ? (
             <svg viewBox="0 0 16 16" aria-hidden><circle cx="8" cy="8" r="3" /><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3 3l1.4 1.4M11.6 11.6 13 13M3 13l1.4-1.4M11.6 4.4 13 3" /></svg>
@@ -120,6 +131,7 @@ export default function App() {
       )}
       {tab === "verification" && <VerificationView />}
       {tab === "about" && <About meta={meta} />}
+      <ShortcutsDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   );
 }
@@ -135,21 +147,27 @@ function Viewer({ meta, sampleKey, summary, custom, theme }: {
   const [surfaceSource, setSurfaceSource] = useState<"gt" | "pred">("pred");
   const [errScale, setErrScale] = useState<"frame" | "rollout">("rollout");
 
-  // keyboard: space = play/pause, arrows = step (ignored while typing in a control)
-  useEffect(() => {
-    const on = (e: KeyboardEvent) => {
-      if (e.defaultPrevented) return; // a focused map or chart has used the key
-      const el = e.target as HTMLElement;
-      if (["INPUT", "SELECT", "TEXTAREA"].includes(el.tagName) && el.getAttribute("type") !== "range") return;
-      if (e.key === " " && el.tagName !== "BUTTON") {
-        e.preventDefault();
-        pb.toggle();
-      } else if (e.key === "ArrowRight" && el.getAttribute("type") !== "range") pb.step(e.shiftKey ? 10 : 1);
-      else if (e.key === "ArrowLeft" && el.getAttribute("type") !== "range") pb.step(e.shiftKey ? -10 : -1);
-    };
-    window.addEventListener("keydown", on);
-    return () => window.removeEventListener("keydown", on);
-  }, [pb]);
+  // Global shortcuts (listed in ShortcutsDialog). Keys a focused control needs are left alone.
+  const nudgeSpeed = (d: number) => {
+    const i = SPEEDS.indexOf(pb.speed);
+    pb.setSpeed(SPEEDS[Math.min(SPEEDS.length - 1, Math.max(0, (i < 0 ? SPEEDS.indexOf(1) : i) + d))]);
+  };
+  useHotkeys({
+    " ": () => pb.toggle(),
+    ArrowLeft: (e) => pb.step(e.shiftKey ? -10 : -1),
+    ArrowRight: (e) => pb.step(e.shiftKey ? 10 : 1),
+    Home: () => pb.step(-nt),
+    End: () => pb.step(nt),
+    ",": () => nudgeSpeed(-1),
+    "<": () => nudgeSpeed(-1),
+    ".": () => nudgeSpeed(1),
+    ">": () => nudgeSpeed(1),
+    "2": () => setMode("2d"),
+    "3": () => setMode("3d"),
+    c: () => {
+      if (mode === "2d") setErrScale((s) => (s === "frame" ? "rollout" : "frame"));
+    },
+  });
 
   if (!sampleKey) return <div className="panel">Select a sample.</div>;
   if (error) return <div className="panel error-box">Could not load sample {sampleKey}: {error}</div>;
@@ -294,12 +312,13 @@ function ViewerBody({
 
       <div className="view-bar">
         <div className="segmented" role="radiogroup" aria-label="View">
-          <button type="button" role="radio" aria-checked={mode === "2d"} className={mode === "2d" ? "on" : ""} onClick={() => setMode("2d")}>2D maps</button>
+          <button type="button" role="radio" aria-checked={mode === "2d"} className={mode === "2d" ? "on" : ""} onClick={() => setMode("2d")}
+            aria-keyshortcuts="2" title="2D maps (2)">2D maps</button>
           <button type="button" role="radio" aria-checked={mode === "3d"} className={mode === "3d" ? "on" : ""} onClick={() => setMode("3d")}
-            onPointerEnter={preloadSurface3D} onFocus={preloadSurface3D}>3D surface</button>
+            onPointerEnter={preloadSurface3D} onFocus={preloadSurface3D} aria-keyshortcuts="3" title="3D surface (3)">3D surface</button>
         </div>
         {mode === "2d" ? (
-          <div className="segmented" role="radiogroup" aria-label="Colour scale">
+          <div className="segmented" role="radiogroup" aria-label="Colour scale" aria-keyshortcuts="C" title="Colour scale (C)">
             <span className="seg-label">Colour scale</span>
             <button type="button" role="radio" aria-checked={errScale === "rollout"} className={errScale === "rollout" ? "on" : ""} onClick={() => setErrScale("rollout")}>Whole rollout</button>
             <button type="button" role="radio" aria-checked={errScale === "frame"} className={errScale === "frame" ? "on" : ""} onClick={() => setErrScale("frame")}>This frame</button>
