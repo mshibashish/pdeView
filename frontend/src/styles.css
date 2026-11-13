@@ -149,10 +149,54 @@ h2 { font-size: 16px; font-weight: 600; }
 .presets { display: flex; flex-wrap: wrap; gap: 6px; }
 .presets button { border: 1px solid var(--border); background: var(--surface-2); border-radius: 999px; padding: 3px 10px; font-size: 12px; cursor: pointer; }
 .presets button:hover { border-color: var(--accent); }
-.slider { display: grid; gap: 2px; font-size: 12.5px; color: var(--text-secondary); }
+.slider { --thumb: 14px; display: grid; gap: 2px; font-size: 12.5px; color: var(--text-secondary); }
 .slider-head { display: flex; justify-content: space-between; }
 .slider-head strong { color: var(--text-primary); font-variant-numeric: tabular-nums; }
-.slider input { width: 100%; accent-color: var(--accent); margin: 0; }
+/* Range input drawn by hand so the thumb width is known and the training-range marks line up with it:
+   the thumb centre runs from --thumb/2 to 100% - --thumb/2. */
+.slider-track { position: relative; display: block; height: 18px; }
+.slider-track::before {
+  content: ""; position: absolute; left: calc(var(--thumb) / 2); right: calc(var(--thumb) / 2); top: 7px;
+  height: 4px; border-radius: 2px; background: var(--baseline);
+}
+.slider-scope {
+  position: absolute; top: 7px; height: 4px; border-radius: 2px; background: var(--good);
+  left: calc(var(--thumb) / 2 + (100% - var(--thumb)) * var(--lo));
+  width: calc((100% - var(--thumb)) * (var(--hi) - var(--lo)));
+}
+.slider-scope.point { width: 2px; top: 1px; height: 16px; border-radius: 1px; transform: translateX(-1px); }
+.slider input[type="range"] {
+  -webkit-appearance: none; appearance: none; position: relative; display: block;
+  width: 100%; height: 18px; margin: 0; background: transparent; cursor: pointer;
+}
+.slider input[type="range"]::-webkit-slider-runnable-track { height: 18px; background: transparent; }
+.slider input[type="range"]::-moz-range-track { height: 18px; background: transparent; }
+.slider input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none; box-sizing: border-box; width: var(--thumb); height: var(--thumb);
+  margin-top: calc((18px - var(--thumb)) / 2); border-radius: 50%; background: var(--accent);
+  border: 2px solid var(--surface-1); box-shadow: 0 0 0 1px var(--accent);
+}
+.slider input[type="range"]::-moz-range-thumb {
+  box-sizing: border-box; width: var(--thumb); height: var(--thumb); border-radius: 50%;
+  background: var(--accent); border: 2px solid var(--surface-1); box-shadow: 0 0 0 1px var(--accent);
+}
+.slider input[type="range"]:focus-visible { outline: none; }
+.slider input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 1px var(--accent), 0 0 0 4px var(--accent-soft); }
+.slider input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 1px var(--accent), 0 0 0 4px var(--accent-soft); }
+.slider-ticks {
+  position: relative; display: block; height: 13px; font-size: 10.5px; line-height: 13px;
+  color: var(--text-muted); font-variant-numeric: tabular-nums;
+}
+.slider-ticks span {
+  position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap;
+  left: calc(var(--thumb) / 2 + (100% - var(--thumb)) * var(--at));
+}
+.scope-key { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 11.5px; color: var(--text-muted); }
+.scope-swatch { width: 14px; height: 4px; border-radius: 2px; background: var(--good); }
+.visually-hidden {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden;
+  clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
 .ood { display: flex; gap: 8px; align-items: flex-start; font-size: 12.5px; padding: 8px 10px; border-radius: 8px; background: var(--surface-2); }
 .ood svg { width: 16px; height: 16px; flex: none; fill: none; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; margin-top: 1px; }
 .ood.out svg { stroke: var(--warning); }
