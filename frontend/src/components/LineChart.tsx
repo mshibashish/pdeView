@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
 
 export interface Series {
   id: string;
@@ -64,6 +64,8 @@ export function LineChart({
   const wrapRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(360);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const [fromKeys, setFromKeys] = useState(false); // announce keyboard moves only, not pointer hover
+  const helpId = useId();
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -115,13 +117,39 @@ export function LineChart({
     return d;
   });
 
-  const indexAt = (clientX: number, rect: DOMRect) => {
-    const px = clientX - rect.left - M.left;
-    const v = x[0] + (px / iw) * (x[x.length - 1] - x[0]);
+  const nearest = (v: number) => {
     let best = 0;
     for (let i = 1; i < x.length; i++) if (Math.abs(x[i] - v) < Math.abs(x[best] - v)) best = i;
     return best;
   };
+  const indexAt = (clientX: number, rect: DOMRect) =>
+    nearest(x[0] + ((clientX - rect.left - M.left) / iw) * (x[x.length - 1] - x[0]));
+
+  // Keyboard: the same crosshair and tooltip as hover. Arrows move it (Shift: 10 points), Home/End
+  // jump to the ends, Enter or Space seeks when the chart supports it.
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    const cur = hoverIdx ?? (marker !== undefined ? nearest(marker) : 0);
+    const n = e.shiftKey ? 10 : 1;
+    const moves: Record<string, number> = {
+      ArrowLeft: cur - n, ArrowRight: cur + n, Home: 0, End: x.length - 1,
+    };
+    if (e.key in moves) {
+      setHoverIdx(Math.min(x.length - 1, Math.max(0, moves[e.key])));
+      setFromKeys(true);
+    } else if ((e.key === "Enter" || e.key === " ") && onPick) {
+      onPick(cur);
+    } else if (e.key === "Escape" && hoverIdx !== null) {
+      setHoverIdx(null);
+    } else {
+      return;
+    }
+    e.preventDefault(); // also tells the global shortcuts that this key is taken
+  };
+  const describe = (i: number) =>
+    `${xLabel.split(" ")[0]} = ${tipX(x[i])}: ${series
+      .map((s) => `${s.label} ${s.values[i] === null || !Number.isFinite(s.values[i]) ? "no value" : tipY(s.values[i] as number)}`)
+      .join(", ")}`;
 
   const hx = hoverIdx !== null ? xs(x[hoverIdx]) : null;
   const tooltipLeft = hx !== null && hx + 200 > width;
@@ -141,14 +169,37 @@ export function LineChart({
           ))}
         </ul>
       </div>
-      <div className="chart-body">
+      <div
+        className="chart-body"
+        tabIndex={0}
+        role="application"
+        aria-roledescription="chart"
+        aria-label={title}
+        aria-describedby={helpId}
+        onKeyDown={onKeyDown}
+        onFocus={() => setHoverIdx((i) => i ?? (marker !== undefined ? nearest(marker) : 0))}
+        onBlur={() => {
+          setHoverIdx(null);
+          setFromKeys(false);
+        }}
+      >
+        <span id={helpId} className="visually-hidden">
+          Left and right arrows move the cursor, Shift moves 10 points{onPick ? ", Enter jumps to that time" : ""}.
+        </span>
+        <span className="visually-hidden" aria-live="polite">
+          {fromKeys && hoverIdx !== null ? describe(hoverIdx) : ""}
+        </span>
         <svg
           width={width}
           height={height}
-          role="img"
-          aria-label={title}
-          onPointerMove={(e) => setHoverIdx(indexAt(e.clientX, e.currentTarget.getBoundingClientRect()))}
-          onPointerLeave={() => setHoverIdx(null)}
+          aria-hidden
+          onPointerMove={(e) => {
+            setHoverIdx(indexAt(e.clientX, e.currentTarget.getBoundingClientRect()));
+            setFromKeys(false);
+          }}
+          onPointerLeave={() => {
+            if (!fromKeys) setHoverIdx(null);
+          }}
           onClick={(e) => onPick?.(indexAt(e.clientX, e.currentTarget.getBoundingClientRect()))}
           style={{ cursor: onPick ? "pointer" : undefined }}
         >

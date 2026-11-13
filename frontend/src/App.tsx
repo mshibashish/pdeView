@@ -138,6 +138,7 @@ function Viewer({ meta, sampleKey, summary, custom, theme }: {
   // keyboard: space = play/pause, arrows = step (ignored while typing in a control)
   useEffect(() => {
     const on = (e: KeyboardEvent) => {
+      if (e.defaultPrevented) return; // a focused map or chart has used the key
       const el = e.target as HTMLElement;
       if (["INPUT", "SELECT", "TEXTAREA"].includes(el.tagName) && el.getAttribute("type") !== "range") return;
       if (e.key === " " && el.tagName !== "BUTTON") {
@@ -173,7 +174,7 @@ interface BodyProps {
   loading: boolean;
   pb: ReturnType<typeof usePlayback>;
   hover: Hover | null;
-  setHover: (h: Hover | null) => void;
+  setHover: React.Dispatch<React.SetStateAction<Hover | null>>;
   mode: "2d" | "3d";
   setMode: (m: "2d" | "3d") => void;
   surfaceSource: "gt" | "pred";
@@ -346,7 +347,7 @@ function ViewerBody({
               <span>error <strong>{fmtSigned(at(pred, f, hover.ix, hover.iy) - at(gt, f, hover.ix, hover.iy), 4)}</strong></span>
             </>
           ) : (
-            <span className="muted">Hover a map to read values. The cross-section follows the hovered row.</span>
+            <span className="muted">Hover a map to read values (click to pin the probe, arrow keys move it). The cross-section follows the probed row.</span>
           )}
         </div>
       </div>
