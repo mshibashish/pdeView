@@ -261,6 +261,7 @@ select { background: var(--surface-1); border: 1px solid var(--border); border-r
 .surface-wrap { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 10px; }
 .surface3d { width: 100%; height: min(62vh, 560px); }
 .surface3d canvas { width: 100% !important; height: 100% !important; display: block; }
+.surface-loading { display: grid; place-items: center; padding: 16px; text-align: center; color: var(--text-secondary); background: var(--surface-2); border-radius: 6px; }
 .hint { margin: 6px 0 0; font-size: 12px; color: var(--text-muted); }
 
 .legend-row { display: flex; gap: 24px; align-items: flex-end; flex-wrap: wrap; }

@@ -6,7 +6,7 @@ import { CustomPanel } from "./components/CustomPanel";
 import { FieldPanel, type Hover } from "./components/FieldPanel";
 import { LineChart } from "./components/LineChart";
 import { SampleList } from "./components/SampleList";
-import { Surface3D } from "./components/Surface3D";
+import { preloadSurface3D, Surface3D } from "./components/LazySurface3D";
 import { TimeControls } from "./components/TimeControls";
 import { VerificationView } from "./components/VerificationView";
 import { fmtNum, fmtSci, fmtSigned } from "./format";
@@ -294,7 +294,8 @@ function ViewerBody({
       <div className="view-bar">
         <div className="segmented" role="radiogroup" aria-label="View">
           <button type="button" role="radio" aria-checked={mode === "2d"} className={mode === "2d" ? "on" : ""} onClick={() => setMode("2d")}>2D maps</button>
-          <button type="button" role="radio" aria-checked={mode === "3d"} className={mode === "3d" ? "on" : ""} onClick={() => setMode("3d")}>3D surface</button>
+          <button type="button" role="radio" aria-checked={mode === "3d"} className={mode === "3d" ? "on" : ""} onClick={() => setMode("3d")}
+            onPointerEnter={preloadSurface3D} onFocus={preloadSurface3D}>3D surface</button>
         </div>
         {mode === "2d" ? (
           <div className="segmented" role="radiogroup" aria-label="Colour scale">
