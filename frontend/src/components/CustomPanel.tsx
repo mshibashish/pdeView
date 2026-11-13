@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useId, useState, type CSSProperties } from "react";
 import { api } from "../api";
 import type { CustomRun, DamParams } from "../types";
 
@@ -13,26 +13,50 @@ const PRESETS: { label: string; p: DamParams }[] = [
   { label: "Deep dam", p: { radius: 0.5, cx: 0, cy: 0, h_in: 3 } },
 ];
 
+/** PDEBench's training distribution: r ~ U(0.3, 0.7), dam centred at the origin, h_in = 2. */
+const TRAINED = {
+  radius: [0.3, 0.7],
+  cx: [0, 0],
+  cy: [0, 0],
+  h_in: [2, 2],
+} as const satisfies Record<keyof DamParams, readonly [number, number]>;
+
 function oodReasons(p: DamParams): string[] {
   const r: string[] = [];
-  if (p.radius < 0.3 || p.radius > 0.7) r.push("radius outside 0.3–0.7");
+  if (p.radius < TRAINED.radius[0] || p.radius > TRAINED.radius[1]) r.push("radius outside 0.3–0.7");
   if (Math.abs(p.cx) > 1e-9 || Math.abs(p.cy) > 1e-9) r.push("off-centre");
-  if (Math.abs(p.h_in - 2) > 1e-9) r.push("inner depth ≠ 2");
+  if (Math.abs(p.h_in - TRAINED.h_in[0]) > 1e-9) r.push("inner depth ≠ 2");
   return r;
 }
 
-function Slider({ label, value, min, max, step, onChange, unit = "" }: {
+/** Position along the track as a CSS variable (thumb-centre fraction). */
+const at = (name: string, f: number) => ({ [name]: f }) as CSSProperties;
+
+function Slider({ label, value, min, max, step, onChange, trained, unit = "" }: {
   label: string; value: number; min: number; max: number; step: number;
-  onChange: (v: number) => void; unit?: string;
+  onChange: (v: number) => void; trained: readonly [number, number]; unit?: string;
 }) {
+  const id = useId();
+  const frac = (v: number) => (v - min) / (max - min);
+  const [lo, hi] = trained;
+  const point = lo === hi;
   return (
     <label className="slider">
       <span className="slider-head">
         <span>{label}</span>
         <strong>{value.toFixed(2)}{unit}</strong>
       </span>
-      <input type="range" min={min} max={max} step={step} value={value}
-        onChange={(e) => onChange(Number(e.target.value))} />
+      <span className="slider-track" style={{ ...at("--lo", frac(lo)), ...at("--hi", frac(hi)) }}>
+        <span className={`slider-scope${point ? " point" : ""}`} aria-hidden />
+        <input type="range" min={min} max={max} step={step} value={value} aria-describedby={id}
+          onChange={(e) => onChange(Number(e.target.value))} />
+      </span>
+      <span className="slider-ticks" aria-hidden>
+        {(point ? [lo] : [lo, hi]).map((v) => <span key={v} style={at("--at", frac(v))}>{v}</span>)}
+      </span>
+      <span id={id} className="visually-hidden">
+        {point ? `Training value ${lo}` : `Training range ${lo} to ${hi}`}
+      </span>
     </label>
   );
 }
@@ -68,10 +92,15 @@ export function CustomPanel({ onRun }: Props) {
             <button key={pr.label} type="button" onClick={() => setP(pr.p)}>{pr.label}</button>
           ))}
         </div>
-        <Slider label="Radius r" value={p.radius} min={0.1} max={1.2} step={0.01} onChange={(radius) => setP({ ...p, radius })} />
-        <Slider label="Centre x" value={p.cx} min={-1.5} max={1.5} step={0.05} onChange={(cx) => setP({ ...p, cx })} />
-        <Slider label="Centre y" value={p.cy} min={-1.5} max={1.5} step={0.05} onChange={(cy) => setP({ ...p, cy })} />
-        <Slider label="Inner depth h_in" value={p.h_in} min={1.25} max={3} step={0.05} onChange={(h_in) => setP({ ...p, h_in })} />
+        <p className="scope-key"><span className="scope-swatch" aria-hidden />Training distribution (PDEBench)</p>
+        <Slider label="Radius r" value={p.radius} min={0.1} max={1.2} step={0.01} trained={TRAINED.radius}
+          onChange={(radius) => setP({ ...p, radius })} />
+        <Slider label="Centre x" value={p.cx} min={-1.5} max={1.5} step={0.05} trained={TRAINED.cx}
+          onChange={(cx) => setP({ ...p, cx })} />
+        <Slider label="Centre y" value={p.cy} min={-1.5} max={1.5} step={0.05} trained={TRAINED.cy}
+          onChange={(cy) => setP({ ...p, cy })} />
+        <Slider label="Inner depth h_in" value={p.h_in} min={1.25} max={3} step={0.05} trained={TRAINED.h_in}
+          onChange={(h_in) => setP({ ...p, h_in })} />
         <div className={`ood ${ood.length ? "out" : "in"}`} role="status">
           {ood.length ? (
             <>
