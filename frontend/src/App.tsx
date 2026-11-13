@@ -87,7 +87,7 @@ export default function App() {
               {t === "verification" && verdict?.verdict && (
                 <span className={`pill ${verdict.verdict === "PASS" ? "good" : "critical"}`}>
                   {verdict.verdict === "PASS" ? "gates pass" : "gates fail"}
-                  {nFindings > 0 && ` · ${nFindings} findings`}
+                  {nFindings > 0 && <span className="pill-more"> · {nFindings} findings</span>}
                 </span>
               )}
             </button>

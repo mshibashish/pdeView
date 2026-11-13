@@ -1,3 +1,5 @@
+import type { CSSProperties } from "react";
+
 interface Props {
   frame: number;
   nFrames: number;
@@ -36,12 +38,13 @@ export function TimeControls({
         </button>
       </div>
       <div className="time-track">
-        <div className="time-regions" aria-hidden>
-          <div className="region input" style={{ width: `${inputPct}%` }}>
+        <div className="time-regions" aria-hidden style={{ "--input": `${inputPct}%` } as CSSProperties}>
+          <div className="region input">
             <span>GT input</span>
           </div>
           <div className="region rollout">
-            <span>FNO autoregressive rollout →</span>
+            <span className="long">FNO autoregressive rollout →</span>
+            <span className="short">FNO rollout →</span>
           </div>
         </div>
         <input
