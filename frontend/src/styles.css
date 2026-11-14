@@ -253,6 +253,7 @@ select { background: var(--surface-1); border: 1px solid var(--border); border-r
   border: 1px solid var(--border); background: var(--surface-1); color: var(--text-secondary); font-size: 13px;
 }
 .tool-btn:hover { background: var(--surface-2); color: var(--text-primary); }
+.tool-btn:disabled { opacity: 0.6; cursor: progress; }
 .tool-btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 /* Confirmation bubble under the button; kept in the DOM (empty) so the status is announced. */
 .tool-status {
@@ -316,7 +317,14 @@ select { background: var(--surface-1); border: 1px solid var(--border); border-r
 /* charts */
 .charts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .chart { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px 10px 6px; box-shadow: var(--shadow); min-width: 0; }
-.chart-head { display: grid; gap: 4px; margin: 0 4px 4px; }
+.chart-head { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 8px; align-items: center; margin: 0 4px 4px; }
+.chart-head .legend { grid-column: 1 / -1; }
+.chart-btn {
+  display: inline-flex; align-items: center; gap: 4px; padding: 2px 7px; border-radius: 6px; cursor: pointer;
+  border: 1px solid var(--border); background: none; color: var(--text-muted); font-size: 11.5px;
+}
+.chart-btn:hover { color: var(--text-primary); background: var(--surface-2); }
+.chart-btn svg { width: 12px; height: 12px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
 .chart-title { font-weight: 600; font-size: 13px; }
 .legend { list-style: none; display: flex; gap: 12px; margin: 0; padding: 0; font-size: 12px; color: var(--text-secondary); flex-wrap: wrap; }
 .legend li { display: inline-flex; align-items: center; gap: 5px; }
@@ -442,6 +450,10 @@ kbd {
   .time-controls { padding: 8px 10px; gap: 6px 10px; }
   .time-readout { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 8px; }
   .shortcuts-groups { grid-template-columns: 1fr; }
+  /* the tools wrap to the left edge here: anchor their confirmations to the row, not the button */
+  .view-tools { position: relative; }
+  .tool { position: static; }
+  .tool-status { left: 0; right: auto; max-width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }

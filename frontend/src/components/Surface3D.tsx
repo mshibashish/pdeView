@@ -52,7 +52,8 @@ export function Surface3D({ values, nx, ny, lo, hi, table, theme, version, exagg
     if (!mount) return;
     let renderer: THREE.WebGLRenderer;
     try {
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      // preserveDrawingBuffer: "Save PNG" reads the canvas outside the render loop
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
     } catch {
       mount.textContent = "WebGL is not available in this browser.";
       return;

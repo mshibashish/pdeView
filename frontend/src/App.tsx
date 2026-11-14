@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import { api, at, frame as frameOf } from "./api";
 import { lut, type Theme } from "./colormap";
 import { Colorbar } from "./components/Colorbar";
-import { CopyLinkButton } from "./components/CopyLinkButton";
 import { CustomPanel } from "./components/CustomPanel";
 import { FieldPanel, type Hover } from "./components/FieldPanel";
 import { LineChart } from "./components/LineChart";
@@ -10,7 +9,10 @@ import { SampleList } from "./components/SampleList";
 import { ShortcutsDialog } from "./components/ShortcutsDialog";
 import { preloadSurface3D, Surface3D } from "./components/LazySurface3D";
 import { SPEEDS, TimeControls } from "./components/TimeControls";
+import { DownloadIcon, LinkIcon, ToolButton } from "./components/ToolButton";
 import { VerificationView } from "./components/VerificationView";
+import { downloadBlob } from "./download";
+import { canvasToPng, renderFigure, type FigurePanel } from "./figure";
 import { fmtNum, fmtSci, fmtSigned } from "./format";
 import { frameAt, patchHash, readHashParams, useHashChange } from "./hashState";
 import { usePlayback } from "./hooks/usePlayback";
@@ -282,6 +284,7 @@ function ViewerBody({
   const eLut = lut("error", theme);
   const gtFrame = frameOf(gt, f);
   const prFrame = frameOf(pred, f);
+  const [surfaceEl, setSurfaceEl] = useState<HTMLDivElement | null>(null); // the 3D canvas is read from here
 
   const frameRange = useMemo(() => {
     let e = 0;
@@ -319,6 +322,54 @@ function ViewerBody({
   const isInput = f < k0;
   const twins = summary?.n_twins_total ?? 0;
   const refLabel = custom ? "Reference" : "Ground truth";
+
+  // Labels shared by the page and the exported figure.
+  const gtTitle = custom ? "Reference solver" : "Ground truth";
+  const gtSub = custom ? "pdeView FV (PyClaw scheme)" : "PyClaw finite volume";
+  const prSub = isInput ? "input frame = ground truth" : `${f - k0 + 1} autoregressive steps`;
+  const errSub = `FNO − ${refLabel.toLowerCase()}`;
+  const scaleName = perFrame ? "this frame" : "whole rollout";
+  const hLabel = `Water height h (${scaleName})`;
+  const eLabel = perFrame && isInput ? "Error (input frames are exact)" : `Error FNO − ${custom ? "ref" : "GT"} (${scaleName})`;
+  const eFormat = (v: number) => (Math.abs(v) < 1e-5 ? "0" : fmtSigned(v, 3));
+  const heading = custom ? "Custom dam break" : summary?.split === "heldout" ? `Held-out case ${data.key}` : `Sample ${data.key}`;
+  const stamp = isInput ? "ground-truth input" : `prediction step ${f - k0 + 1}`;
+
+  /** PNG of what is on screen: the three maps (or the 3D view) with colour bars and a caption. */
+  const saveImage = async () => {
+    const shot = mode === "3d" ? surfaceEl?.querySelector("canvas") : null;
+    if (mode === "3d" && !shot) throw new Error("The 3D view has not loaded yet.");
+    const panels: FigurePanel[] = shot
+      ? [{ title: surfaceSource === "gt" ? gtTitle : "FNO prediction", subtitle: "3D surface, height exaggerated 1.5×", image: shot }]
+      : [
+        { title: gtTitle, subtitle: gtSub, values: gtFrame, lo, hi, table: hLut },
+        { title: "FNO prediction", subtitle: prSub, values: prFrame, lo, hi, table: hLut },
+        { title: "Error", subtitle: errSub, values: errAt, lo: -eMax, hi: eMax, table: eLut },
+      ];
+    const fig = renderFigure({
+      title: `${heading} · t = ${t[f].toFixed(2)}`,
+      subtitle: `Frame ${f}/${t.length - 1} (${stamp}) · FNO nRMSE over the rollout ${fmtSci(stats.summary.nRMSE)} · colour scale: ${scaleName}`,
+      panels,
+      bars: [
+        { table: hLut, lo, hi, label: hLabel, format: (v) => v.toFixed(2) },
+        ...(shot ? [] : [{ table: eLut, lo: -eMax, hi: eMax, label: eLabel, format: eFormat }]),
+      ],
+      footer: "pdeView · 2D shallow-water radial dam break · data and pretrained FNO: PDEBench (Takamoto et al., 2022), CC BY 4.0",
+      nx, ny, panelWidth: shot ? 900 : 384,
+    });
+    const name = `pdeview-${data.key}-t${t[f].toFixed(2)}-${shot ? `3d-${surfaceSource === "gt" ? "gt" : "fno"}` : "maps"}.png`;
+    downloadBlob(await canvasToPng(fig), name);
+    return `Saved ${name}`;
+  };
+  const copyLink = async () => {
+    const url = linkToView();
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      throw new Error("Could not copy. The address bar has the same link.");
+    }
+    return custom ? "Link copied. Custom runs are not stored in links, so it opens a test sample." : "Link copied";
+  };
 
   return (
     <section className={`viewer ${loading ? "refreshing" : ""}`} aria-label={`Sample ${data.key}`}>
@@ -396,24 +447,24 @@ function ViewerBody({
               <button type="button" role="radio" aria-checked={surfaceSource === "pred"} className={surfaceSource === "pred" ? "on" : ""} onClick={() => setSurfaceSource("pred")}>FNO</button>
             </div>
           )}
-          <CopyLinkButton getUrl={linkToView}
-            note={custom ? "Custom runs are not stored in links, so it opens a test sample at this time and view." : undefined} />
+          <ToolButton icon={<LinkIcon />} label="Copy link" run={copyLink} title="Copy a link to this sample, time and view" />
+          <ToolButton icon={<DownloadIcon />} label="Save PNG" run={saveImage}
+            title={mode === "2d" ? "Save the three maps with their colour bars as a PNG" : "Save the 3D view with its colour bar as a PNG"} />
         </div>
       </div>
 
       {mode === "2d" ? (
         <div className="fields">
-          <FieldPanel title={custom ? "Reference solver" : "Ground truth"}
-            subtitle={custom ? "pdeView FV (PyClaw scheme)" : "PyClaw finite volume"} nx={nx} ny={ny} values={gtFrame}
+          <FieldPanel title={gtTitle} subtitle={gtSub} nx={nx} ny={ny} values={gtFrame}
             lo={lo} hi={hi} table={hLut} hover={hover} onHover={setHover} version={`${version}-${theme}`} />
-          <FieldPanel title="FNO prediction" subtitle={isInput ? "input frame = ground truth" : `${f - k0 + 1} autoregressive steps`}
+          <FieldPanel title="FNO prediction" subtitle={prSub}
             badge={isInput ? "input" : undefined} nx={nx} ny={ny} values={prFrame}
             lo={lo} hi={hi} table={hLut} hover={hover} onHover={setHover} version={`${version}-${theme}`} />
-          <FieldPanel title="Error" subtitle={`FNO − ${refLabel.toLowerCase()}`} nx={nx} ny={ny} values={errAt}
+          <FieldPanel title="Error" subtitle={errSub} nx={nx} ny={ny} values={errAt}
             lo={-eMax} hi={eMax} table={eLut} hover={hover} onHover={setHover} version={`${version}-${theme}-${eMax}`} />
         </div>
       ) : (
-        <div className="surface-wrap">
+        <div className="surface-wrap" ref={setSurfaceEl}>
           <Surface3D values={surfaceSource === "gt" ? gtFrame : prFrame} nx={nx} ny={ny} lo={lo} hi={hi}
             table={hLut} theme={theme} version={`${version}-${surfaceSource}-${theme}`} />
           <p className="hint">Drag to rotate · scroll to zoom · height exaggerated 1.5×</p>
@@ -421,12 +472,8 @@ function ViewerBody({
       )}
 
       <div className="legend-row">
-        <Colorbar kind="height" theme={theme} lo={lo} hi={hi} label={`Water height h (${perFrame ? "this frame" : "whole rollout"})`} />
-        {mode === "2d" && (
-          <Colorbar kind="error" theme={theme} lo={-eMax} hi={eMax}
-            label={perFrame && isInput ? "Error (input frames are exact)" : `Error FNO − ${custom ? "ref" : "GT"} (${perFrame ? "this frame" : "whole rollout"})`}
-            format={(v) => (Math.abs(v) < 1e-5 ? "0" : fmtSigned(v, 3))} />
-        )}
+        <Colorbar kind="height" theme={theme} lo={lo} hi={hi} label={hLabel} />
+        {mode === "2d" && <Colorbar kind="error" theme={theme} lo={-eMax} hi={eMax} label={eLabel} format={eFormat} />}
         <div className="readout" aria-live="polite">
           {hover ? (
             <>
@@ -459,6 +506,7 @@ function ViewerBody({
           formatTip={(v) => v.toFixed(4)}
           formatTipX={(v) => v.toFixed(3)}
           marker={hover ? x[hover.ix] : undefined}
+          csvName={`pdeview-${data.key}-cross-section-y${y[iyCut].toFixed(2)}-t${t[f].toFixed(2)}.csv`}
         />
         <LineChart
           title="Error over time (click to seek)"
@@ -478,6 +526,7 @@ function ViewerBody({
           onPick={pb.setFrame}
           shade={[t[0], t[k0 - 1]]}
           shadeLabel="input"
+          csvName={`pdeview-${data.key}-nrmse.csv`}
         />
         <LineChart
           title="Water volume change vs. t = 0"
@@ -495,6 +544,7 @@ function ViewerBody({
           leftMargin={62}
           marker={t[f]}
           onPick={pb.setFrame}
+          csvName={`pdeview-${data.key}-volume.csv`}
         />
       </div>
     </section>
