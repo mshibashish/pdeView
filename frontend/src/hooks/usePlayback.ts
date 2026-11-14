@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 /** Frame index state with requestAnimationFrame-driven playback. */
-export function usePlayback(nFrames: number, baseFps = 20) {
-  const [frame, setFrameState] = useState(0);
+export function usePlayback(nFrames: number, initialFrame = 0, baseFps = 20) {
+  const [frame, setFrameState] = useState(initialFrame);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
-  const frameRef = useRef(0);
+  const frameRef = useRef(initialFrame);
 
   const setFrame = useCallback(
     (f: number) => {

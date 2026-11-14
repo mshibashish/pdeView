@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api, at, frame as frameOf } from "./api";
 import { lut, type Theme } from "./colormap";
 import { Colorbar } from "./components/Colorbar";
+import { CopyLinkButton } from "./components/CopyLinkButton";
 import { CustomPanel } from "./components/CustomPanel";
 import { FieldPanel, type Hover } from "./components/FieldPanel";
 import { LineChart } from "./components/LineChart";
@@ -11,6 +12,7 @@ import { preloadSurface3D, Surface3D } from "./components/LazySurface3D";
 import { SPEEDS, TimeControls } from "./components/TimeControls";
 import { VerificationView } from "./components/VerificationView";
 import { fmtNum, fmtSci, fmtSigned } from "./format";
+import { frameAt, patchHash, readHashParams, useHashChange } from "./hashState";
 import { usePlayback } from "./hooks/usePlayback";
 import { useHotkeys } from "./hooks/useHotkeys";
 import { useSample } from "./hooks/useSample";
@@ -25,10 +27,13 @@ const SERIES: Record<Theme, { gt: string; fno: string; persist: string }> = {
   dark: { gt: "#3987e5", fno: "#d95926", persist: "#199e70" },
 };
 
+const TABS: Tab[] = ["viewer", "verification", "about"];
+const tabFrom = (p: URLSearchParams): Tab => TABS.find((t) => t === p.get("tab")) ?? "viewer";
+const APP_TITLE = document.title;
+
 function readHash(): { tab: Tab; sample: string | null } {
-  const h = new URLSearchParams(window.location.hash.slice(1));
-  const tab = (h.get("tab") as Tab) || "viewer";
-  return { tab: ["viewer", "verification", "about"].includes(tab) ? tab : "viewer", sample: h.get("sample") };
+  const h = readHashParams();
+  return { tab: tabFrom(h), sample: h.get("sample") };
 }
 
 export default function App() {
@@ -62,11 +67,22 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const p = new URLSearchParams();
-    if (tab !== "viewer") p.set("tab", tab);
-    if (selected) p.set("sample", selected);
-    window.history.replaceState(null, "", `#${p.toString()}`);
+    patchHash({ tab: tab === "viewer" ? null : tab, sample: selected });
   }, [tab, selected]);
+  useHashChange((p) => {
+    setTab(tabFrom(p));
+    const s = p.get("sample");
+    if (s) setSelected(s);
+  });
+
+  // Name the view in the tab title, so history entries and bookmarks are told apart.
+  useEffect(() => {
+    const heldout = samples.some((s) => s.key === selected && s.split === "heldout");
+    const what = tab === "verification" ? "Model verification" : tab === "about" ? "About"
+      : !selected ? null : customRuns[selected] ? "Custom dam break"
+      : heldout ? `Held-out case ${selected}` : `Sample ${selected}`;
+    document.title = what ? `${what} · pdeView` : APP_TITLE;
+  }, [tab, selected, samples, customRuns]);
 
   const verdict = meta?.verification;
   const nFindings = verdict?.criteria.filter((c) => c.kind === "finding" && !c.pass).length ?? 0;
@@ -136,16 +152,65 @@ export default function App() {
   );
 }
 
+interface ViewState {
+  frame: number;
+  mode: "2d" | "3d";
+  errScale: "frame" | "rollout";
+  surfaceSource: "gt" | "pred";
+}
+
+/** Hash parameters for a view (#t=0.42&view=3d&scale=frame&surface=gt); defaults are left out. */
+function viewToHash(times: number[], v: ViewState): Record<string, string | null> {
+  return {
+    t: v.frame > 0 ? times[v.frame].toFixed(2) : null,
+    view: v.mode === "3d" ? "3d" : null,
+    scale: v.errScale === "frame" ? "frame" : null,
+    surface: v.surfaceSource === "gt" ? "gt" : null,
+  };
+}
+
+function viewFromHash(times: number[], p: URLSearchParams): ViewState {
+  return {
+    frame: frameAt(times, p.get("t")) ?? 0,
+    mode: p.get("view") === "3d" ? "3d" : "2d",
+    errScale: p.get("scale") === "frame" ? "frame" : "rollout",
+    surfaceSource: p.get("surface") === "gt" ? "gt" : "pred",
+  };
+}
+
 function Viewer({ meta, sampleKey, summary, custom, theme }: {
   meta: Meta; sampleKey: string | null; summary?: SampleSummary; custom?: CustomRun; theme: Theme;
 }) {
   const { data, loading, error } = useSample(sampleKey);
   const [nt, nx, ny] = meta.shape;
-  const pb = usePlayback(nt);
+  // The time and view start from the link, if it has them.
+  const [linked] = useState(() => viewFromHash(meta.t, readHashParams()));
+  const pb = usePlayback(nt, linked.frame);
   const [hover, setHover] = useState<Hover | null>(null);
-  const [mode, setMode] = useState<"2d" | "3d">("2d");
-  const [surfaceSource, setSurfaceSource] = useState<"gt" | "pred">("pred");
-  const [errScale, setErrScale] = useState<"frame" | "rollout">("rollout");
+  const [mode, setMode] = useState(linked.mode);
+  const [surfaceSource, setSurfaceSource] = useState(linked.surfaceSource);
+  const [errScale, setErrScale] = useState(linked.errScale);
+
+  // Mirror them back into the hash: debounced so scrubbing does not write every frame, and not during
+  // playback (browsers rate-limit replaceState).
+  const { frame, playing } = pb;
+  useEffect(() => {
+    if (playing) return;
+    const id = setTimeout(() => patchHash(viewToHash(meta.t, { frame, mode, errScale, surfaceSource })), 250);
+    return () => clearTimeout(id);
+  }, [frame, playing, mode, errScale, surfaceSource, meta.t]);
+  useHashChange((p) => {
+    const v = viewFromHash(meta.t, p);
+    pb.setPlaying(false);
+    pb.setFrame(v.frame);
+    setMode(v.mode);
+    setErrScale(v.errScale);
+    setSurfaceSource(v.surfaceSource);
+  });
+  const linkToView = () => {
+    patchHash(viewToHash(meta.t, { frame, mode, errScale, surfaceSource }));
+    return window.location.href;
+  };
 
   // Global shortcuts (listed in ShortcutsDialog). Keys a focused control needs are left alone.
   const nudgeSpeed = (d: number) => {
@@ -178,7 +243,7 @@ function Viewer({ meta, sampleKey, summary, custom, theme }: {
       meta={meta} data={data} summary={summary} custom={custom} theme={theme} loading={loading}
       pb={pb} hover={hover} setHover={setHover} mode={mode} setMode={setMode}
       surfaceSource={surfaceSource} setSurfaceSource={setSurfaceSource}
-      errScale={errScale} setErrScale={setErrScale} nx={nx} ny={ny}
+      errScale={errScale} setErrScale={setErrScale} nx={nx} ny={ny} linkToView={linkToView}
     />
   );
 }
@@ -201,11 +266,12 @@ interface BodyProps {
   setErrScale: (s: "frame" | "rollout") => void;
   nx: number;
   ny: number;
+  linkToView: () => string;
 }
 
 function ViewerBody({
   meta, data, summary, custom, theme, loading, pb, hover, setHover, mode, setMode,
-  surfaceSource, setSurfaceSource, errScale, setErrScale, nx, ny,
+  surfaceSource, setSurfaceSource, errScale, setErrScale, nx, ny, linkToView,
 }: BodyProps) {
   const { gt, pred, stats } = data;
   const t = meta.t;
@@ -317,18 +383,22 @@ function ViewerBody({
           <button type="button" role="radio" aria-checked={mode === "3d"} className={mode === "3d" ? "on" : ""} onClick={() => setMode("3d")}
             onPointerEnter={preloadSurface3D} onFocus={preloadSurface3D} aria-keyshortcuts="3" title="3D surface (3)">3D surface</button>
         </div>
-        {mode === "2d" ? (
-          <div className="segmented" role="radiogroup" aria-label="Colour scale" aria-keyshortcuts="C" title="Colour scale (C)">
-            <span className="seg-label">Colour scale</span>
-            <button type="button" role="radio" aria-checked={errScale === "rollout"} className={errScale === "rollout" ? "on" : ""} onClick={() => setErrScale("rollout")}>Whole rollout</button>
-            <button type="button" role="radio" aria-checked={errScale === "frame"} className={errScale === "frame" ? "on" : ""} onClick={() => setErrScale("frame")}>This frame</button>
-          </div>
-        ) : (
-          <div className="segmented" role="radiogroup" aria-label="Surface source">
-            <button type="button" role="radio" aria-checked={surfaceSource === "gt"} className={surfaceSource === "gt" ? "on" : ""} onClick={() => setSurfaceSource("gt")}>Ground truth</button>
-            <button type="button" role="radio" aria-checked={surfaceSource === "pred"} className={surfaceSource === "pred" ? "on" : ""} onClick={() => setSurfaceSource("pred")}>FNO</button>
-          </div>
-        )}
+        <div className="view-tools">
+          {mode === "2d" ? (
+            <div className="segmented" role="radiogroup" aria-label="Colour scale" aria-keyshortcuts="C" title="Colour scale (C)">
+              <span className="seg-label">Colour scale</span>
+              <button type="button" role="radio" aria-checked={errScale === "rollout"} className={errScale === "rollout" ? "on" : ""} onClick={() => setErrScale("rollout")}>Whole rollout</button>
+              <button type="button" role="radio" aria-checked={errScale === "frame"} className={errScale === "frame" ? "on" : ""} onClick={() => setErrScale("frame")}>This frame</button>
+            </div>
+          ) : (
+            <div className="segmented" role="radiogroup" aria-label="Surface source">
+              <button type="button" role="radio" aria-checked={surfaceSource === "gt"} className={surfaceSource === "gt" ? "on" : ""} onClick={() => setSurfaceSource("gt")}>Ground truth</button>
+              <button type="button" role="radio" aria-checked={surfaceSource === "pred"} className={surfaceSource === "pred" ? "on" : ""} onClick={() => setSurfaceSource("pred")}>FNO</button>
+            </div>
+          )}
+          <CopyLinkButton getUrl={linkToView}
+            note={custom ? "Custom runs are not stored in links, so it opens a test sample at this time and view." : undefined} />
+        </div>
       </div>
 
       {mode === "2d" ? (

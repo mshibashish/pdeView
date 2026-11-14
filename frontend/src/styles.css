@@ -246,6 +246,22 @@ select { background: var(--surface-1); border: 1px solid var(--border); border-r
 .stats dt { font-size: 12px; color: var(--text-muted); }
 .stats dd { margin: 0; font-size: 20px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .view-bar { display: flex; gap: 12px; flex-wrap: wrap; justify-content: space-between; }
+.view-tools { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.tool { position: relative; display: inline-flex; }
+.tool-btn {
+  display: inline-flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 8px; cursor: pointer;
+  border: 1px solid var(--border); background: var(--surface-1); color: var(--text-secondary); font-size: 13px;
+}
+.tool-btn:hover { background: var(--surface-2); color: var(--text-primary); }
+.tool-btn svg { width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+/* Confirmation bubble under the button; kept in the DOM (empty) so the status is announced. */
+.tool-status {
+  position: absolute; top: calc(100% + 6px); right: 0; z-index: 6; width: max-content; max-width: 260px;
+  padding: 6px 10px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface-1);
+  box-shadow: var(--shadow); font-size: 12.5px; color: var(--text-primary);
+}
+.tool-status:empty { padding: 0; border: 0; box-shadow: none; }
+.tool-status.bad { color: var(--critical); }
 
 .fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; }
 .field-panel { margin: 0; background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--radius); padding: 10px; box-shadow: var(--shadow); }
