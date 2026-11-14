@@ -328,7 +328,11 @@ function ViewerBody({
         { table: hLut, lo, hi, label: hLabel, format: (v) => v.toFixed(2) },
         ...(shot ? [] : [{ table: eLut, lo: -eMax, hi: eMax, label: eLabel, format: eFormat }]),
       ],
-      footer: "pdeView · 2D shallow-water radial dam break · data and pretrained FNO: PDEBench (Takamoto et al., 2022), CC BY 4.0",
+      footer: `pdeView · 2D shallow-water radial dam break · ${
+        custom ? "reference: pdeView's finite-volume solver · pretrained FNO"
+          : summary?.split === "heldout" ? "ground truth: pdeView's PyClaw runs with PDEBench's configuration · pretrained FNO"
+            : "data and pretrained FNO"
+      }: PDEBench (Takamoto et al., 2022), CC BY 4.0`,
       nx, ny, panelWidth: shot ? 900 : 384,
     });
     const name = `pdeview-${data.key}-t${t[f].toFixed(2)}-${shot ? `3d-${surfaceSource === "gt" ? "gt" : "fno"}` : "maps"}.png`;
