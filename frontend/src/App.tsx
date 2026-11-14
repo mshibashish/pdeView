@@ -4,19 +4,19 @@ import { lut, type Theme } from "./colormap";
 import { Colorbar } from "./components/Colorbar";
 import { CustomPanel } from "./components/CustomPanel";
 import { FieldPanel, type Hover } from "./components/FieldPanel";
+import { preloadSurface3D, Surface3D } from "./components/LazySurface3D";
 import { LineChart } from "./components/LineChart";
 import { SampleList } from "./components/SampleList";
 import { ShortcutsDialog } from "./components/ShortcutsDialog";
-import { preloadSurface3D, Surface3D } from "./components/LazySurface3D";
 import { SPEEDS, TimeControls } from "./components/TimeControls";
 import { DownloadIcon, LinkIcon, ToolButton } from "./components/ToolButton";
 import { VerificationView } from "./components/VerificationView";
 import { downloadBlob } from "./download";
 import { canvasToPng, renderFigure, type FigurePanel } from "./figure";
 import { fmtNum, fmtSci, fmtSigned } from "./format";
-import { frameAt, patchHash, readHashParams, useHashChange } from "./hashState";
-import { usePlayback } from "./hooks/usePlayback";
+import { patchHash, readHashParams, useHashChange, viewFromHash, viewToHash } from "./hashState";
 import { useHotkeys } from "./hooks/useHotkeys";
+import { usePlayback } from "./hooks/usePlayback";
 import { useSample } from "./hooks/useSample";
 import { useTheme } from "./hooks/useTheme";
 import type { CustomRun, Meta, SampleData, SampleSummary } from "./types";
@@ -122,6 +122,7 @@ export default function App() {
             <path d="M4 6.5h.01M6.67 6.5h.01M9.33 6.5h.01M12 6.5h.01M4.5 9.5h7" />
           </svg>
         </button>
+        <ShortcutsDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
         <button type="button" className="icon-btn theme" onClick={toggleTheme} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`} title="Toggle theme">
           {theme === "dark" ? (
             <svg viewBox="0 0 16 16" aria-hidden><circle cx="8" cy="8" r="3" /><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3 3l1.4 1.4M11.6 11.6 13 13M3 13l1.4-1.4M11.6 4.4 13 3" /></svg>
@@ -149,35 +150,8 @@ export default function App() {
       )}
       {tab === "verification" && <VerificationView />}
       {tab === "about" && <About meta={meta} />}
-      <ShortcutsDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
     </div>
   );
-}
-
-interface ViewState {
-  frame: number;
-  mode: "2d" | "3d";
-  errScale: "frame" | "rollout";
-  surfaceSource: "gt" | "pred";
-}
-
-/** Hash parameters for a view (#t=0.42&view=3d&scale=frame&surface=gt); defaults are left out. */
-function viewToHash(times: number[], v: ViewState): Record<string, string | null> {
-  return {
-    t: v.frame > 0 ? times[v.frame].toFixed(2) : null,
-    view: v.mode === "3d" ? "3d" : null,
-    scale: v.errScale === "frame" ? "frame" : null,
-    surface: v.surfaceSource === "gt" ? "gt" : null,
-  };
-}
-
-function viewFromHash(times: number[], p: URLSearchParams): ViewState {
-  return {
-    frame: frameAt(times, p.get("t")) ?? 0,
-    mode: p.get("view") === "3d" ? "3d" : "2d",
-    errScale: p.get("scale") === "frame" ? "frame" : "rollout",
-    surfaceSource: p.get("surface") === "gt" ? "gt" : "pred",
-  };
 }
 
 function Viewer({ meta, sampleKey, summary, custom, theme }: {

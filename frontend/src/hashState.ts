@@ -46,3 +46,31 @@ export function frameAt(times: number[], value: string | null): number | null {
   for (let i = 1; i < times.length; i++) if (Math.abs(times[i] - v) < Math.abs(times[best] - v)) best = i;
   return best;
 }
+
+/** The viewer state a link carries besides the tab and sample. */
+export interface ViewState {
+  frame: number;
+  mode: "2d" | "3d";
+  errScale: "frame" | "rollout";
+  surfaceSource: "gt" | "pred";
+}
+
+/** Hash parameters for a view (#t=0.42&view=3d&scale=frame&surface=gt); defaults are left out. */
+export function viewToHash(times: number[], v: ViewState): Record<string, string | null> {
+  return {
+    t: v.frame > 0 ? times[v.frame].toFixed(2) : null,
+    view: v.mode === "3d" ? "3d" : null,
+    scale: v.errScale === "frame" ? "frame" : null,
+    surface: v.surfaceSource === "gt" ? "gt" : null,
+  };
+}
+
+/** The inverse of viewToHash; missing or unknown values fall back to the defaults. */
+export function viewFromHash(times: number[], p: URLSearchParams): ViewState {
+  return {
+    frame: frameAt(times, p.get("t")) ?? 0,
+    mode: p.get("view") === "3d" ? "3d" : "2d",
+    errScale: p.get("scale") === "frame" ? "frame" : "rollout",
+    surfaceSource: p.get("surface") === "gt" ? "gt" : "pred",
+  };
+}
