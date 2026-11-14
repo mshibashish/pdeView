@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useId, useMemo, useRef, useState } from "react";
+import { csvBlob, downloadBlob } from "../download";
 
 export interface Series {
   id: string;
@@ -27,6 +28,7 @@ interface Props {
   formatTip?: (v: number) => string; // tooltip value format (defaults to formatY)
   formatTipX?: (v: number) => string; // tooltip x format (defaults to formatX)
   leftMargin?: number;
+  csvName?: string; // offer the plotted data as a CSV download under this file name
 }
 
 const MARGIN = { top: 8, right: 14, bottom: 34, left: 54 };
@@ -56,7 +58,7 @@ function logTicks(lo: number, hi: number): number[] {
 export function LineChart({
   title, x, series, yScale = "linear", xLabel, yLabel, formatY, formatX = (v) => v.toFixed(1),
   marker, markerLabel, height = 200, yDomain, onPick, shade, shadeLabel, formatTip, formatTipX,
-  leftMargin,
+  leftMargin, csvName,
 }: Props) {
   const M = { ...MARGIN, left: leftMargin ?? MARGIN.left };
   const tipY = formatTip ?? formatY;
@@ -64,6 +66,8 @@ export function LineChart({
   const wrapRef = useRef<HTMLDivElement>(null);
   const [width, setWidth] = useState(360);
   const [hoverIdx, setHoverIdx] = useState<number | null>(null);
+  const [fromKeys, setFromKeys] = useState(false); // announce keyboard moves only, not pointer hover
+  const helpId = useId();
 
   useEffect(() => {
     const el = wrapRef.current;
@@ -115,12 +119,45 @@ export function LineChart({
     return d;
   });
 
-  const indexAt = (clientX: number, rect: DOMRect) => {
-    const px = clientX - rect.left - M.left;
-    const v = x[0] + (px / iw) * (x[x.length - 1] - x[0]);
+  const nearest = (v: number) => {
     let best = 0;
     for (let i = 1; i < x.length; i++) if (Math.abs(x[i] - v) < Math.abs(x[best] - v)) best = i;
     return best;
+  };
+  const indexAt = (clientX: number, rect: DOMRect) =>
+    nearest(x[0] + ((clientX - rect.left - M.left) / iw) * (x[x.length - 1] - x[0]));
+
+  // Keyboard: the same crosshair and tooltip as hover. Arrows move it (Shift: 10 points), Home/End
+  // jump to the ends, Enter or Space seeks when the chart supports it.
+  const onKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    const cur = hoverIdx ?? (marker !== undefined ? nearest(marker) : 0);
+    const n = e.shiftKey ? 10 : 1;
+    const moves: Record<string, number> = {
+      ArrowLeft: cur - n, ArrowRight: cur + n, Home: 0, End: x.length - 1,
+    };
+    if (e.key in moves) {
+      setHoverIdx(Math.min(x.length - 1, Math.max(0, moves[e.key])));
+      setFromKeys(true);
+    } else if ((e.key === "Enter" || e.key === " ") && onPick) {
+      onPick(cur);
+    } else if (e.key === "Escape" && hoverIdx !== null) {
+      setHoverIdx(null);
+    } else {
+      return;
+    }
+    e.preventDefault(); // also tells the global shortcuts that this key is taken
+  };
+  const describe = (i: number) =>
+    `${xLabel.split(" ")[0]} = ${tipX(x[i])}: ${series
+      .map((s) => `${s.label} ${s.values[i] === null || !Number.isFinite(s.values[i]) ? "no value" : tipY(s.values[i] as number)}`)
+      .join(", ")}`;
+
+  // The plotted numbers, one row per x, at float32 precision (7 significant digits).
+  const saveCsv = (name: string) => {
+    const num = (v: number | null) => (v === null || !Number.isFinite(v) ? null : Number(v.toPrecision(7)));
+    const head = [xLabel, ...series.map((s) => (yLabel ? `${s.label} ${yLabel}` : s.label))];
+    downloadBlob(csvBlob(head, x.map((xv, i) => [num(xv), ...series.map((s) => num(s.values[i]))])), name);
   };
 
   const hx = hoverIdx !== null ? xs(x[hoverIdx]) : null;
@@ -130,6 +167,13 @@ export function LineChart({
     <div className="chart" ref={wrapRef}>
       <div className="chart-head">
         <div className="chart-title">{title}</div>
+        {csvName && (
+          <button type="button" className="chart-btn" onClick={() => saveCsv(csvName)}
+            aria-label={`Download the data of "${title}" as CSV`} title="Download the plotted data (CSV)">
+            <svg viewBox="0 0 16 16" aria-hidden><path d="M8 2.5v8M4.5 7 8 10.5 11.5 7M3 13.5h10" /></svg>
+            CSV
+          </button>
+        )}
         <ul className="legend" aria-label="Legend">
           {series.map((s) => (
             <li key={s.id}>
@@ -141,14 +185,37 @@ export function LineChart({
           ))}
         </ul>
       </div>
-      <div className="chart-body">
+      <div
+        className="chart-body"
+        tabIndex={0}
+        role="application"
+        aria-roledescription="chart"
+        aria-label={title}
+        aria-describedby={helpId}
+        onKeyDown={onKeyDown}
+        onFocus={() => setHoverIdx((i) => i ?? (marker !== undefined ? nearest(marker) : 0))}
+        onBlur={() => {
+          setHoverIdx(null);
+          setFromKeys(false);
+        }}
+      >
+        <span id={helpId} className="visually-hidden">
+          Left and right arrows move the cursor, Shift moves 10 points{onPick ? ", Enter jumps to that time" : ""}.
+        </span>
+        <span className="visually-hidden" aria-live="polite">
+          {fromKeys && hoverIdx !== null ? describe(hoverIdx) : ""}
+        </span>
         <svg
           width={width}
           height={height}
-          role="img"
-          aria-label={title}
-          onPointerMove={(e) => setHoverIdx(indexAt(e.clientX, e.currentTarget.getBoundingClientRect()))}
-          onPointerLeave={() => setHoverIdx(null)}
+          aria-hidden
+          onPointerMove={(e) => {
+            setHoverIdx(indexAt(e.clientX, e.currentTarget.getBoundingClientRect()));
+            setFromKeys(false);
+          }}
+          onPointerLeave={() => {
+            if (!fromKeys) setHoverIdx(null);
+          }}
           onClick={(e) => onPick?.(indexAt(e.clientX, e.currentTarget.getBoundingClientRect()))}
           style={{ cursor: onPick ? "pointer" : undefined }}
         >

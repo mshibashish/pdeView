@@ -23,6 +23,9 @@ and ground truth side by side:
   PDEBench's training split. Browse them in the sample list under *Held-out*.
 - **Model verification tab** showing the full checkpoint audit, the held-out test and the generalisation study
   described below.
+- **Keyboard, links and export**: press `?` to list the shortcuts (play, step, switch view, next sample); the maps
+  and charts can also be read with the arrow keys. The URL keeps the sample, time and view, so a link reopens the
+  same frame. *Save PNG* writes the current view with its colour bars, and each chart downloads its data as CSV.
 
 ## Live demo (static)
 

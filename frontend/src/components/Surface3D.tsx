@@ -3,7 +3,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 import type { Theme } from "../colormap";
 
-interface Props {
+export interface Surface3DProps {
   values: Float32Array; // one [X, Y] frame, x-major
   nx: number;
   ny: number;
@@ -35,7 +35,7 @@ function linearTable(table: Uint8ClampedArray): Float32Array {
 }
 
 /** Water surface h(x, y) as a lit, colour-mapped height field (drag to orbit, scroll to zoom). */
-export function Surface3D({ values, nx, ny, lo, hi, table, theme, version, exaggeration = 1.5 }: Props) {
+export function Surface3D({ values, nx, ny, lo, hi, table, theme, version, exaggeration = 1.5 }: Surface3DProps) {
   const mountRef = useRef<HTMLDivElement>(null);
   const stateRef = useRef<{
     renderer: THREE.WebGLRenderer;
@@ -52,7 +52,8 @@ export function Surface3D({ values, nx, ny, lo, hi, table, theme, version, exagg
     if (!mount) return;
     let renderer: THREE.WebGLRenderer;
     try {
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
+      // preserveDrawingBuffer: "Save PNG" reads the canvas outside the render loop
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
     } catch {
       mount.textContent = "WebGL is not available in this browser.";
       return;

@@ -4,12 +4,18 @@ import { lut, type Theme } from "./colormap";
 import { Colorbar } from "./components/Colorbar";
 import { CustomPanel } from "./components/CustomPanel";
 import { FieldPanel, type Hover } from "./components/FieldPanel";
+import { preloadSurface3D, Surface3D } from "./components/LazySurface3D";
 import { LineChart } from "./components/LineChart";
 import { SampleList } from "./components/SampleList";
-import { Surface3D } from "./components/Surface3D";
-import { TimeControls } from "./components/TimeControls";
+import { ShortcutsDialog } from "./components/ShortcutsDialog";
+import { SPEEDS, TimeControls } from "./components/TimeControls";
+import { DownloadIcon, LinkIcon, ToolButton } from "./components/ToolButton";
 import { VerificationView } from "./components/VerificationView";
+import { downloadBlob } from "./download";
+import { canvasToPng, renderFigure, type FigurePanel } from "./figure";
 import { fmtNum, fmtSci, fmtSigned } from "./format";
+import { patchHash, readHashParams, useHashChange, viewFromHash, viewToHash } from "./hashState";
+import { useHotkeys } from "./hooks/useHotkeys";
 import { usePlayback } from "./hooks/usePlayback";
 import { useSample } from "./hooks/useSample";
 import { useTheme } from "./hooks/useTheme";
@@ -23,10 +29,13 @@ const SERIES: Record<Theme, { gt: string; fno: string; persist: string }> = {
   dark: { gt: "#3987e5", fno: "#d95926", persist: "#199e70" },
 };
 
+const TABS: Tab[] = ["viewer", "verification", "about"];
+const tabFrom = (p: URLSearchParams): Tab => TABS.find((t) => t === p.get("tab")) ?? "viewer";
+const APP_TITLE = document.title;
+
 function readHash(): { tab: Tab; sample: string | null } {
-  const h = new URLSearchParams(window.location.hash.slice(1));
-  const tab = (h.get("tab") as Tab) || "viewer";
-  return { tab: ["viewer", "verification", "about"].includes(tab) ? tab : "viewer", sample: h.get("sample") };
+  const h = readHashParams();
+  return { tab: tabFrom(h), sample: h.get("sample") };
 }
 
 export default function App() {
@@ -38,6 +47,8 @@ export default function App() {
   const [selected, setSelected] = useState<string | null>(initial.sample);
   const [bootError, setBootError] = useState<string | null>(null);
   const [customRuns, setCustomRuns] = useState<Record<string, CustomRun>>({});
+  const [helpOpen, setHelpOpen] = useState(false);
+  useHotkeys({ "?": () => setHelpOpen(true) });
   const onCustomRun = (run: CustomRun) => {
     setCustomRuns((c) => ({ ...c, [run.key]: run }));
     setSelected(run.key);
@@ -58,11 +69,22 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const p = new URLSearchParams();
-    if (tab !== "viewer") p.set("tab", tab);
-    if (selected) p.set("sample", selected);
-    window.history.replaceState(null, "", `#${p.toString()}`);
+    patchHash({ tab: tab === "viewer" ? null : tab, sample: selected });
   }, [tab, selected]);
+  useHashChange((p) => {
+    setTab(tabFrom(p));
+    const s = p.get("sample");
+    if (s) setSelected(s);
+  });
+
+  // Name the view in the tab title, so history entries and bookmarks are told apart.
+  useEffect(() => {
+    const heldout = samples.some((s) => s.key === selected && s.split === "heldout");
+    const what = tab === "verification" ? "Model verification" : tab === "about" ? "About"
+      : !selected ? null : customRuns[selected] ? "Custom dam break"
+      : heldout ? `Held-out case ${selected}` : `Sample ${selected}`;
+    document.title = what ? `${what} · pdeView` : APP_TITLE;
+  }, [tab, selected, samples, customRuns]);
 
   const verdict = meta?.verification;
   const nFindings = verdict?.criteria.filter((c) => c.kind === "finding" && !c.pass).length ?? 0;
@@ -87,12 +109,20 @@ export default function App() {
               {t === "verification" && verdict?.verdict && (
                 <span className={`pill ${verdict.verdict === "PASS" ? "good" : "critical"}`}>
                   {verdict.verdict === "PASS" ? "gates pass" : "gates fail"}
-                  {nFindings > 0 && ` · ${nFindings} findings`}
+                  {nFindings > 0 && <span className="pill-more"> · {nFindings} findings</span>}
                 </span>
               )}
             </button>
           ))}
         </nav>
+        <button type="button" className="icon-btn" onClick={() => setHelpOpen(true)} aria-label="Keyboard shortcuts"
+          aria-keyshortcuts="?" aria-haspopup="dialog" title="Keyboard shortcuts (?)">
+          <svg viewBox="0 0 16 16" aria-hidden>
+            <rect x="1.5" y="3.5" width="13" height="9" rx="1.5" />
+            <path d="M4 6.5h.01M6.67 6.5h.01M9.33 6.5h.01M12 6.5h.01M4.5 9.5h7" />
+          </svg>
+        </button>
+        <ShortcutsDialog open={helpOpen} onClose={() => setHelpOpen(false)} />
         <button type="button" className="icon-btn theme" onClick={toggleTheme} aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} theme`} title="Toggle theme">
           {theme === "dark" ? (
             <svg viewBox="0 0 16 16" aria-hidden><circle cx="8" cy="8" r="3" /><path d="M8 1v2M8 13v2M1 8h2M13 8h2M3 3l1.4 1.4M11.6 11.6 13 13M3 13l1.4-1.4M11.6 4.4 13 3" /></svg>
@@ -172,26 +202,56 @@ function Viewer({ meta, sampleKey, summary, custom, theme }: {
 }) {
   const { data, loading, error } = useSample(sampleKey);
   const [nt, nx, ny] = meta.shape;
-  const pb = usePlayback(nt);
+  // The time and view start from the link, if it has them.
+  const [linked] = useState(() => viewFromHash(meta.t, readHashParams()));
+  const pb = usePlayback(nt, linked.frame);
   const [hover, setHover] = useState<Hover | null>(null);
-  const [mode, setMode] = useState<"2d" | "3d">("2d");
-  const [surfaceSource, setSurfaceSource] = useState<"gt" | "pred">("pred");
-  const [errScale, setErrScale] = useState<"frame" | "rollout">("rollout");
+  const [mode, setMode] = useState(linked.mode);
+  const [surfaceSource, setSurfaceSource] = useState(linked.surfaceSource);
+  const [errScale, setErrScale] = useState(linked.errScale);
 
-  // keyboard: space = play/pause, arrows = step (ignored while typing in a control)
+  // Mirror them back into the hash: debounced so scrubbing does not write every frame, and not during
+  // playback (browsers rate-limit replaceState).
+  const { frame, playing } = pb;
   useEffect(() => {
-    const on = (e: KeyboardEvent) => {
-      const el = e.target as HTMLElement;
-      if (["INPUT", "SELECT", "TEXTAREA"].includes(el.tagName) && el.getAttribute("type") !== "range") return;
-      if (e.key === " " && el.tagName !== "BUTTON") {
-        e.preventDefault();
-        pb.toggle();
-      } else if (e.key === "ArrowRight" && el.getAttribute("type") !== "range") pb.step(e.shiftKey ? 10 : 1);
-      else if (e.key === "ArrowLeft" && el.getAttribute("type") !== "range") pb.step(e.shiftKey ? -10 : -1);
-    };
-    window.addEventListener("keydown", on);
-    return () => window.removeEventListener("keydown", on);
-  }, [pb]);
+    if (playing) return;
+    const id = setTimeout(() => patchHash(viewToHash(meta.t, { frame, mode, errScale, surfaceSource })), 250);
+    return () => clearTimeout(id);
+  }, [frame, playing, mode, errScale, surfaceSource, meta.t]);
+  useHashChange((p) => {
+    const v = viewFromHash(meta.t, p);
+    pb.setPlaying(false);
+    pb.setFrame(v.frame);
+    setMode(v.mode);
+    setErrScale(v.errScale);
+    setSurfaceSource(v.surfaceSource);
+  });
+  const linkToView = () => {
+    patchHash(viewToHash(meta.t, { frame, mode, errScale, surfaceSource }));
+    return window.location.href;
+  };
+
+  // Global shortcuts (listed in ShortcutsDialog). Keys a focused control needs are left alone.
+  const nudgeSpeed = (d: number) => {
+    const i = SPEEDS.indexOf(pb.speed);
+    pb.setSpeed(SPEEDS[Math.min(SPEEDS.length - 1, Math.max(0, (i < 0 ? SPEEDS.indexOf(1) : i) + d))]);
+  };
+  useHotkeys({
+    " ": () => pb.toggle(),
+    ArrowLeft: (e) => pb.step(e.shiftKey ? -10 : -1),
+    ArrowRight: (e) => pb.step(e.shiftKey ? 10 : 1),
+    Home: () => pb.step(-nt),
+    End: () => pb.step(nt),
+    ",": () => nudgeSpeed(-1),
+    "<": () => nudgeSpeed(-1),
+    ".": () => nudgeSpeed(1),
+    ">": () => nudgeSpeed(1),
+    "2": () => setMode("2d"),
+    "3": () => setMode("3d"),
+    c: () => {
+      if (mode === "2d") setErrScale((s) => (s === "frame" ? "rollout" : "frame"));
+    },
+  });
 
   if (!sampleKey) return <div className="panel">Select a sample.</div>;
   if (error) return <div className="panel error-box">Could not load sample {sampleKey}: {error}</div>;
@@ -204,7 +264,7 @@ function Viewer({ meta, sampleKey, summary, custom, theme }: {
       meta={meta} data={data} summary={summary} custom={custom} theme={theme} loading={loading}
       pb={pb} hover={hover} setHover={setHover} mode={mode} setMode={setMode}
       surfaceSource={surfaceSource} setSurfaceSource={setSurfaceSource}
-      errScale={errScale} setErrScale={setErrScale} nx={nx} ny={ny}
+      errScale={errScale} setErrScale={setErrScale} nx={nx} ny={ny} linkToView={linkToView}
     />
   );
 }
@@ -218,7 +278,7 @@ interface BodyProps {
   loading: boolean;
   pb: ReturnType<typeof usePlayback>;
   hover: Hover | null;
-  setHover: (h: Hover | null) => void;
+  setHover: React.Dispatch<React.SetStateAction<Hover | null>>;
   mode: "2d" | "3d";
   setMode: (m: "2d" | "3d") => void;
   surfaceSource: "gt" | "pred";
@@ -227,11 +287,12 @@ interface BodyProps {
   setErrScale: (s: "frame" | "rollout") => void;
   nx: number;
   ny: number;
+  linkToView: () => string;
 }
 
 function ViewerBody({
   meta, data, summary, custom, theme, loading, pb, hover, setHover, mode, setMode,
-  surfaceSource, setSurfaceSource, errScale, setErrScale, nx, ny,
+  surfaceSource, setSurfaceSource, errScale, setErrScale, nx, ny, linkToView,
 }: BodyProps) {
   const { gt, pred, stats } = data;
   const t = meta.t;
@@ -242,6 +303,7 @@ function ViewerBody({
   const eLut = lut("error", theme);
   const gtFrame = frameOf(gt, f);
   const prFrame = frameOf(pred, f);
+  const [surfaceEl, setSurfaceEl] = useState<HTMLDivElement | null>(null); // the 3D canvas is read from here
 
   const frameRange = useMemo(() => {
     let e = 0;
@@ -279,6 +341,58 @@ function ViewerBody({
   const isInput = f < k0;
   const twins = summary?.n_twins_total ?? 0;
   const refLabel = custom ? "Reference" : "Ground truth";
+
+  // Labels shared by the page and the exported figure.
+  const gtTitle = custom ? "Reference solver" : "Ground truth";
+  const gtSub = custom ? "pdeView FV (PyClaw scheme)" : "PyClaw finite volume";
+  const prSub = isInput ? "input frame = ground truth" : `${f - k0 + 1} autoregressive steps`;
+  const errSub = `FNO − ${refLabel.toLowerCase()}`;
+  const scaleName = perFrame ? "this frame" : "whole rollout";
+  const hLabel = `Water height h (${scaleName})`;
+  const eLabel = perFrame && isInput ? "Error (input frames are exact)" : `Error FNO − ${custom ? "ref" : "GT"} (${scaleName})`;
+  const eFormat = (v: number) => (Math.abs(v) < 1e-5 ? "0" : fmtSigned(v, 3));
+  const heading = custom ? "Custom dam break" : summary?.split === "heldout" ? `Held-out case ${data.key}` : `Sample ${data.key}`;
+  const stamp = isInput ? "ground-truth input" : `prediction step ${f - k0 + 1}`;
+
+  /** PNG of what is on screen: the three maps (or the 3D view) with colour bars and a caption. */
+  const saveImage = async () => {
+    const shot = mode === "3d" ? surfaceEl?.querySelector("canvas") : null;
+    if (mode === "3d" && !shot) throw new Error("The 3D view has not loaded yet.");
+    const panels: FigurePanel[] = shot
+      ? [{ title: surfaceSource === "gt" ? gtTitle : "FNO prediction", subtitle: "3D surface, height exaggerated 1.5×", image: shot }]
+      : [
+        { title: gtTitle, subtitle: gtSub, values: gtFrame, lo, hi, table: hLut },
+        { title: "FNO prediction", subtitle: prSub, values: prFrame, lo, hi, table: hLut },
+        { title: "Error", subtitle: errSub, values: errAt, lo: -eMax, hi: eMax, table: eLut },
+      ];
+    const fig = renderFigure({
+      title: `${heading} · t = ${t[f].toFixed(2)}`,
+      subtitle: `Frame ${f}/${t.length - 1} (${stamp}) · FNO nRMSE over the rollout ${fmtSci(stats.summary.nRMSE)} · colour scale: ${scaleName}`,
+      panels,
+      bars: [
+        { table: hLut, lo, hi, label: hLabel, format: (v) => v.toFixed(2) },
+        ...(shot ? [] : [{ table: eLut, lo: -eMax, hi: eMax, label: eLabel, format: eFormat }]),
+      ],
+      footer: `pdeView · 2D shallow-water radial dam break · ${
+        custom ? "reference: pdeView's finite-volume solver · pretrained FNO"
+          : summary?.split === "heldout" ? "ground truth: pdeView's PyClaw runs with PDEBench's configuration · pretrained FNO"
+            : "data and pretrained FNO"
+      }: PDEBench (Takamoto et al., 2022), CC BY 4.0`,
+      nx, ny, panelWidth: shot ? 900 : 384,
+    });
+    const name = `pdeview-${data.key}-t${t[f].toFixed(2)}-${shot ? `3d-${surfaceSource === "gt" ? "gt" : "fno"}` : "maps"}.png`;
+    downloadBlob(await canvasToPng(fig), name);
+    return `Saved ${name}`;
+  };
+  const copyLink = async () => {
+    const url = linkToView();
+    try {
+      await navigator.clipboard.writeText(url);
+    } catch {
+      throw new Error("Could not copy. The address bar has the same link.");
+    }
+    return custom ? "Link copied. Custom runs are not stored in links, so it opens a test sample." : "Link copied";
+  };
 
   return (
     <section className={`viewer ${loading ? "refreshing" : ""}`} aria-label={`Sample ${data.key}`}>
@@ -338,36 +452,42 @@ function ViewerBody({
 
       <div className="view-bar">
         <div className="segmented" role="radiogroup" aria-label="View">
-          <button type="button" role="radio" aria-checked={mode === "2d"} className={mode === "2d" ? "on" : ""} onClick={() => setMode("2d")}>2D maps</button>
-          <button type="button" role="radio" aria-checked={mode === "3d"} className={mode === "3d" ? "on" : ""} onClick={() => setMode("3d")}>3D surface</button>
+          <button type="button" role="radio" aria-checked={mode === "2d"} className={mode === "2d" ? "on" : ""} onClick={() => setMode("2d")}
+            aria-keyshortcuts="2" title="2D maps (2)">2D maps</button>
+          <button type="button" role="radio" aria-checked={mode === "3d"} className={mode === "3d" ? "on" : ""} onClick={() => setMode("3d")}
+            onPointerEnter={preloadSurface3D} onFocus={preloadSurface3D} aria-keyshortcuts="3" title="3D surface (3)">3D surface</button>
         </div>
-        {mode === "2d" ? (
-          <div className="segmented" role="radiogroup" aria-label="Colour scale">
-            <span className="seg-label">Colour scale</span>
-            <button type="button" role="radio" aria-checked={errScale === "rollout"} className={errScale === "rollout" ? "on" : ""} onClick={() => setErrScale("rollout")}>Whole rollout</button>
-            <button type="button" role="radio" aria-checked={errScale === "frame"} className={errScale === "frame" ? "on" : ""} onClick={() => setErrScale("frame")}>This frame</button>
-          </div>
-        ) : (
-          <div className="segmented" role="radiogroup" aria-label="Surface source">
-            <button type="button" role="radio" aria-checked={surfaceSource === "gt"} className={surfaceSource === "gt" ? "on" : ""} onClick={() => setSurfaceSource("gt")}>Ground truth</button>
-            <button type="button" role="radio" aria-checked={surfaceSource === "pred"} className={surfaceSource === "pred" ? "on" : ""} onClick={() => setSurfaceSource("pred")}>FNO</button>
-          </div>
-        )}
+        <div className="view-tools">
+          {mode === "2d" ? (
+            <div className="segmented" role="radiogroup" aria-label="Colour scale" aria-keyshortcuts="C" title="Colour scale (C)">
+              <span className="seg-label">Colour scale</span>
+              <button type="button" role="radio" aria-checked={errScale === "rollout"} className={errScale === "rollout" ? "on" : ""} onClick={() => setErrScale("rollout")}>Whole rollout</button>
+              <button type="button" role="radio" aria-checked={errScale === "frame"} className={errScale === "frame" ? "on" : ""} onClick={() => setErrScale("frame")}>This frame</button>
+            </div>
+          ) : (
+            <div className="segmented" role="radiogroup" aria-label="Surface source">
+              <button type="button" role="radio" aria-checked={surfaceSource === "gt"} className={surfaceSource === "gt" ? "on" : ""} onClick={() => setSurfaceSource("gt")}>Ground truth</button>
+              <button type="button" role="radio" aria-checked={surfaceSource === "pred"} className={surfaceSource === "pred" ? "on" : ""} onClick={() => setSurfaceSource("pred")}>FNO</button>
+            </div>
+          )}
+          <ToolButton icon={<LinkIcon />} label="Copy link" run={copyLink} title="Copy a link to this sample, time and view" />
+          <ToolButton icon={<DownloadIcon />} label="Save PNG" run={saveImage}
+            title={mode === "2d" ? "Save the three maps with their colour bars as a PNG" : "Save the 3D view with its colour bar as a PNG"} />
+        </div>
       </div>
 
       {mode === "2d" ? (
         <div className="fields">
-          <FieldPanel title={custom ? "Reference solver" : "Ground truth"}
-            subtitle={custom ? "pdeView FV (PyClaw scheme)" : "PyClaw finite volume"} nx={nx} ny={ny} values={gtFrame}
+          <FieldPanel title={gtTitle} subtitle={gtSub} nx={nx} ny={ny} values={gtFrame}
             lo={lo} hi={hi} table={hLut} hover={hover} onHover={setHover} version={`${version}-${theme}`} />
-          <FieldPanel title="FNO prediction" subtitle={isInput ? "input frame = ground truth" : `${f - k0 + 1} autoregressive steps`}
+          <FieldPanel title="FNO prediction" subtitle={prSub}
             badge={isInput ? "input" : undefined} nx={nx} ny={ny} values={prFrame}
             lo={lo} hi={hi} table={hLut} hover={hover} onHover={setHover} version={`${version}-${theme}`} />
-          <FieldPanel title="Error" subtitle={`FNO − ${refLabel.toLowerCase()}`} nx={nx} ny={ny} values={errAt}
+          <FieldPanel title="Error" subtitle={errSub} nx={nx} ny={ny} values={errAt}
             lo={-eMax} hi={eMax} table={eLut} hover={hover} onHover={setHover} version={`${version}-${theme}-${eMax}`} />
         </div>
       ) : (
-        <div className="surface-wrap">
+        <div className="surface-wrap" ref={setSurfaceEl}>
           <Surface3D values={surfaceSource === "gt" ? gtFrame : prFrame} nx={nx} ny={ny} lo={lo} hi={hi}
             table={hLut} theme={theme} version={`${version}-${surfaceSource}-${theme}`} />
           <p className="hint">Drag to rotate · scroll to zoom · height exaggerated 1.5×</p>
@@ -375,12 +495,8 @@ function ViewerBody({
       )}
 
       <div className="legend-row">
-        <Colorbar kind="height" theme={theme} lo={lo} hi={hi} label={`Water height h (${perFrame ? "this frame" : "whole rollout"})`} />
-        {mode === "2d" && (
-          <Colorbar kind="error" theme={theme} lo={-eMax} hi={eMax}
-            label={perFrame && isInput ? "Error (input frames are exact)" : `Error FNO − ${custom ? "ref" : "GT"} (${perFrame ? "this frame" : "whole rollout"})`}
-            format={(v) => (Math.abs(v) < 1e-5 ? "0" : fmtSigned(v, 3))} />
-        )}
+        <Colorbar kind="height" theme={theme} lo={lo} hi={hi} label={hLabel} />
+        {mode === "2d" && <Colorbar kind="error" theme={theme} lo={-eMax} hi={eMax} label={eLabel} format={eFormat} />}
         <div className="readout" aria-live="polite">
           {hover ? (
             <>
@@ -390,7 +506,7 @@ function ViewerBody({
               <span>error <strong>{fmtSigned(at(pred, f, hover.ix, hover.iy) - at(gt, f, hover.ix, hover.iy), 4)}</strong></span>
             </>
           ) : (
-            <span className="muted">Hover a map to read values. The cross-section follows the hovered row.</span>
+            <span className="muted">Hover a map to read values (click to pin the probe, arrow keys move it). The cross-section follows the probed row.</span>
           )}
         </div>
       </div>
@@ -413,6 +529,7 @@ function ViewerBody({
           formatTip={(v) => v.toFixed(4)}
           formatTipX={(v) => v.toFixed(3)}
           marker={hover ? x[hover.ix] : undefined}
+          csvName={`pdeview-${data.key}-cross-section-y${y[iyCut].toFixed(2)}-t${t[f].toFixed(2)}.csv`}
         />
         <LineChart
           title="Error over time (click to seek)"
@@ -432,6 +549,7 @@ function ViewerBody({
           onPick={pb.setFrame}
           shade={[t[0], t[k0 - 1]]}
           shadeLabel="input"
+          csvName={`pdeview-${data.key}-nrmse.csv`}
         />
         <LineChart
           title="Water volume change vs. t = 0"
@@ -449,6 +567,7 @@ function ViewerBody({
           leftMargin={62}
           marker={t[f]}
           onPick={pb.setFrame}
+          csvName={`pdeview-${data.key}-volume.csv`}
         />
       </div>
     </section>

@@ -1,3 +1,5 @@
+import type { CSSProperties } from "react";
+
 interface Props {
   frame: number;
   nFrames: number;
@@ -11,7 +13,7 @@ interface Props {
   onSpeed: (s: number) => void;
 }
 
-const SPEEDS = [0.25, 0.5, 1, 2, 4];
+export const SPEEDS = [0.25, 0.5, 1, 2, 4];
 
 export function TimeControls({
   frame, nFrames, t, initialStep, playing, speed, onFrame, onToggle, onStep, onSpeed,
@@ -24,7 +26,7 @@ export function TimeControls({
         <button type="button" className="icon-btn" onClick={() => onStep(-1)} aria-label="Previous frame" title="Previous frame (←)">
           <svg viewBox="0 0 16 16" aria-hidden><path d="M10 3 5 8l5 5" /></svg>
         </button>
-        <button type="button" className="icon-btn primary" onClick={onToggle} aria-label={playing ? "Pause" : "Play"} title="Play / pause (space)">
+        <button type="button" className="icon-btn primary" onClick={onToggle} aria-label={playing ? "Pause" : "Play"} aria-keyshortcuts="Space" title="Play / pause (space)">
           {playing ? (
             <svg viewBox="0 0 16 16" aria-hidden><path d="M5 3v10M11 3v10" /></svg>
           ) : (
@@ -36,12 +38,13 @@ export function TimeControls({
         </button>
       </div>
       <div className="time-track">
-        <div className="time-regions" aria-hidden>
-          <div className="region input" style={{ width: `${inputPct}%` }}>
+        <div className="time-regions" aria-hidden style={{ "--input": `${inputPct}%` } as CSSProperties}>
+          <div className="region input">
             <span>GT input</span>
           </div>
           <div className="region rollout">
-            <span>FNO autoregressive rollout →</span>
+            <span className="long">FNO autoregressive rollout →</span>
+            <span className="short">FNO rollout →</span>
           </div>
         </div>
         <input
